@@ -1,0 +1,123 @@
+# ~/.omp/agent/config.yml - KEEL harness settings (verified against omp source, 17.3.x/18.x)
+# Talk to the user in Russian; instructions are English.
+#
+# FIRST RUN: the model ids below are placeholders marked KEEL_SETUP_REQUIRED. On the first omp
+# session the harness will message you in chat to connect a provider (`/login` inside the session,
+# or an env key like OPENROUTER_API_KEY) and fill real ids. Until every
+# KEEL_SETUP_REQUIRED is replaced with a real catalog id, verify.sh fails and the harness reminds
+# you. Get exact slugs from `/models` inside omp (OpenRouter is a built-in provider; reference
+# models as `provider/modelId`). Roles are referenced elsewhere as "@default", "@plan", etc.
+
+# -- Model roles (native routing). Agents pin their model via `model: "@role"`. --
+# Replace each KEEL_SETUP_REQUIRED with a real id. The trailing thinking suffix (:low/:medium/:high)
+# is a suggestion for that role's job - keep or adjust it, but the model id itself must be real.
+modelRoles:
+  default:  KEEL_SETUP_REQUIRED    # orchestrator (primary): fast, coordinates and relays the most
+                                   # turns of anyone. Deep reasoning lives in @plan/@slow, not here.
+  smol:     KEEL_SETUP_REQUIRED    # scout / cheap fan-out. Locates facts (file:line); no reasoning budget.
+  plan:     KEEL_SETUP_REQUIRED    # planner. A strong, strict-schema model - the plan is the foundation.
+  slow:     KEEL_SETUP_REQUIRED    # reviewer (deep read). Strong, strict-schema (NOT DeepSeek).
+  vision:   KEEL_SETUP_REQUIRED    # screenshots; images route here. MUST accept image input.
+  designer: KEEL_SETUP_REQUIRED    # UI concepts.
+  tiny:     KEEL_SETUP_REQUIRED    # titles, memory, background. Cheapest model.
+defaultThinkingLevel: high
+
+# The coder has no natural role - its agent file pins a direct catalog id. See agents/coder.md
+# `model:` (also a KEEL_SETUP_REQUIRED placeholder). Use a strict-schema model (never DeepSeek): it
+# fails strict tool/output schemas over OpenRouter, which would silently defeat the done-report.
+
+# -- Memory: native, free, local, automatic. OFF by default -> we enable mnemopi. --
+memory:
+  backend: mnemopi
+
+# -- Vision: images never reach a text-only model (auto-routes to the vision role) --
+inspect_image:
+  mode: auto
+
+# -- Compaction on; contract/ledger live in docs/ so they survive it --
+compaction:
+  enabled: true
+
+# -- Subagents need LSP for cross-file checks (OFF by default) --
+# ast_grep is OFF by default in omp, so the reviewer's declared `ast_grep` would silently not exist.
+# Turning it on also auto-grants ast_grep to every agent that has `grep` (omp augments the allowlist).
+# -- Isolation from other agent tools --------------------------------------------------------
+# omp discovers the config of Claude Code, Codex, Gemini CLI, opencode and Copilot and merges what
+# it finds: their context files, MCP servers, slash commands, skills, hooks, tools and settings.
+# With several of them installed that is a lot of foreign instruction arriving unannounced.
+# Disabling a provider removes that whole source, not just its context file.
+#
+# Our own files are the `native` provider (~/.omp/agent/...), which is unaffected - and native
+# skills carry priority 100, above claude (80), codex (70) and opencode (55), so a same-named skill
+# of ours already wins the name dedup. This just stops the rest from arriving at all.
+#
+# NOT disabled on purpose: `agents` (~/.agent, ~/.agents) and `agents-md` (a plain AGENTS.md in the
+# repo). Those are the neutral convention, not another tool's config, and a project's own AGENTS.md
+# is usually worth reading. Add them here if you want the harness to ignore even that.
+disabledProviders:
+  - claude
+  - codex
+  - gemini
+  - opencode
+  - github
+
+astGrep:
+  enabled: true
+
+task:
+  enableLsp: true
+  # Per-item `effort` is ignored unless this is on. KEEL sets it from the task type: bug-fix /
+  # refactor / architecture-change / large-feature / audit get `hi`, the rest `med`.
+  #
+  # `effort` is NOT an OpenRouter parameter - it is internal to omp. `lo`/`med`/`hi` map onto
+  # whatever thinking levels the RESOLVED model actually advertises (thinking.ts
+  # resolveTaskEffortLevel -> getSupportedEfforts). A model without reasoning returns an empty set
+  # and the effort is silently ignored, falling back to the agent's own `thinking-level`. So it is
+  # safe on any model and needs no provider support.
+  #
+  # DO NOT set `task.maxEffort` to a low level. It defaults to "max" (the ceiling), which is always
+  # satisfiable. Set it to e.g. "minimal" and a model whose lowest level is above it makes
+  # resolveTaskEffortLevel throw a RangeError instead of clamping - the one crash path here.
+  enableEffort: true
+  isolation:
+    mode: none        # no worktree isolation; verification sees the real tree
+  # reviewer/planner are pinned blocking:true in their agent files so their result returns inline
+  # (the verbatim-relay and plan-before-write flow depend on it). batch/async defaults are fine.
+
+# -- Approvals: FULL AUTO for peripheral work. No per-tool prompts. -----------
+# The harness's gates are BLOCKS in the extension (plan gate, code fence, scope lock), not approval
+# prompts, so yolo removes pestering on peripheral work WITHOUT weakening a guard.
+# (approvalMode: always-ask = auto read-only; write = auto read+write; yolo = auto all.)
+tools:
+  approvalMode: yolo
+  # bash.patterns below feed ONLY the `bash` tool. The `eval` tool declares the exec tier and can
+  # spawn a shell, so the same `rm -rf` would resolve to allow under yolo (omp's approval-mode doc
+  # says so explicitly and recommends this policy). keel already gates eval exactly like bash - this
+  # is the layer that survives if the extension ever fails to load.
+  approval:
+    eval: prompt
+
+# Deletion safety. omp has no `delete` tool - deletion happens through `bash rm` (or a shell verb),
+# so we gate it HERE, where it actually occurs, instead of on a phantom tool. A recursive wipe of
+# root/home is hard-denied; any other `rm`/`shred`/`dd`/`mkfs` prompts once (yolo notwithstanding -
+# a deny/prompt rule is honored in every mode). Everything else runs freely.
+bash:
+  patterns:
+    - match: "rm -rf /*"
+      approval: deny
+    - match: "rm -rf ~*"
+      approval: deny
+    - match: "rm -rf $HOME*"
+      approval: deny
+    - match: "*rm -rf*"
+      approval: prompt
+    - match: "*shred*"
+      approval: prompt
+    - match: "*mkfs*"
+      approval: deny
+    - match: "*"
+      approval: allow
+
+# -- Python interpreter (blank = auto-detect; set a path if PATH has only a stub) --
+python:
+  interpreter: ""

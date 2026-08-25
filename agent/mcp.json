@@ -1,0 +1,9 @@
+{
+  "$comment": "Goes to ~/.omp/agent/mcp.json (NOT ~/.omp/mcp.json - 17.3.x reads it under agent/). The coder drives this browser MCP for live UI verification. Package is patchright-mcp (there is no @patchright scope). Set the real command/args for your setup.",
+  "mcpServers": {
+    "browser": {
+      "command": "npx",
+      "args": ["-y", "patchright-mcp"]
+    }
+  }
+}
