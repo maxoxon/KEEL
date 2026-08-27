@@ -186,10 +186,10 @@ The only role intended to mutate project code. It receives the contract, type ru
 
 A read-only project-code gatekeeper with two distinct jobs:
 
-- **Gate #1, before code:** reviews the contract and plan for completeness, dependency/blast-radius sanity, scope, over-engineering, real-data acceptance criteria, and coherence between fields. It returns a structured verdict and `next_prompt`. fileciteturn39file0L2-L2
-- **Gate #2, after code, conditionally:** re-enters only when a native check failed twice, behavior cannot be auto-checked, the diff is larger than roughly six files, or a sensitive zone changed. It reads the actual diff, audits evidence and scope, and either passes, requests revision, or escalates. fileciteturn39file0L2-L2
+- **Gate #1, before code:** reviews the contract and plan for completeness, dependency/blast-radius sanity, scope, over-engineering, real-data acceptance criteria, and coherence between fields. It returns a structured verdict and `next_prompt`.
+- **Gate #2, after code, conditionally:** re-enters only when a native check failed twice, behavior cannot be auto-checked, the diff is larger than roughly six files, or a sensitive zone changed. It reads the actual diff, audits evidence and scope, and either passes, requests revision, or escalates.
 
-The reviewer has no `edit`, `write`, or `bash` tools. It may use browser/MCP interaction for UI verification, which is why it is intentionally not part of KEEL's strict read-only-agent set.
+The reviewer has no `edit`, `write`, `bash`, or browser/MCP tools in its declared tool set. It is a code/plan gatekeeper, not the browser driver. When an external check is required, it can return a structured `needs` item for the caller to run.
 
 ### Designer
 
@@ -247,7 +247,7 @@ INDEPENDENT ACCEPTANCE
 ACCEPTED / CLOSED
 ```
 
-The second review is **conditional**, not a mandatory step after every coder run. The reviewer agent is explicit that repeated native-check failure, uncheckable behavior, large diffs, and sensitive zones trigger it. fileciteturn39file0L2-L2
+The second review is **conditional**, not a mandatory step after every coder run. The reviewer agent is explicit that repeated native-check failure, uncheckable behavior, large diffs, and sensitive zones trigger it.
 
 The implementation loop is bounded. Repeated mechanical blocks eventually escalate rather than causing an infinite autonomous loop.
 
@@ -341,7 +341,7 @@ reviewer
   └── needs: optional actions only the caller can perform
 ```
 
-When Gate #1 or conditional Gate #2 requires coder action, the extension captures `next_prompt` from the blocking reviewer result and injects it into the coder task **verbatim**. The orchestrator does not paraphrase it. fileciteturn39file0L2-L2
+When Gate #1 or conditional Gate #2 requires coder action, the extension captures `next_prompt` from the blocking reviewer result and injects it into the coder task **verbatim**. The orchestrator does not paraphrase it.
 
 The relay is consumed once. A stale review cannot remain queued and unexpectedly reappear later.
 
@@ -423,9 +423,9 @@ Subagents cannot rewrite the orchestrator's contract, plan/SCOPE, report, review
 
 ### 9.16 Strict read-only enforcement
 
-Planner, designer, and scout are blocked from tools that are not recognized as read-only. This covers MCP because an agent's normal `tools:` allowlist describes omp built-ins, while MCP tools are attached separately.
+Planner, designer, and scout are blocked from tools that are not recognized as read-only. The reviewer is a separate gatekeeper role: it has no project-write tools, but is not the browser driver and is not treated as one of the strict read-only roles.
 
-The reviewer is intentionally excluded from this strict set because it may use browser/MCP interaction for UI verification. Its lack of project write tools, scope enforcement, and LSP write blocking still prevent it from implementing project code.
+MCP is a separate tool boundary. Browser/MCP verification belongs to the contract-bound implementation path; the reviewer can request an external check through `needs` but cannot drive the browser itself.
 
 ### 9.17 Single writer
 
@@ -484,7 +484,7 @@ KEEL relies on structured output wherever a downstream stage needs a machine-rea
 
 ```text
 planner  → plan + contract
-a reviewer → verdict + next_prompt
+reviewer → verdict + next_prompt
 coder    → contract_met + evidence + did_not_verify + remaining
 ```
 
@@ -523,7 +523,7 @@ compare with contract
 accept / return to implementation
 ```
 
-For frontend work, the extension points contract-bound agents at `skill://visual-tooling` when the contract contains a real frontend section. That procedure requires browser interaction and real output rather than source-code inspection as UI proof.
+For frontend work, the extension points the contract-bound implementation path at `skill://visual-tooling` when the contract contains a real frontend section. That procedure requires browser interaction and real output rather than source-code inspection as UI proof. The shipped `mcp.json` configures the browser MCP for that implementation path; the reviewer does not drive the browser.
 
 ---
 
