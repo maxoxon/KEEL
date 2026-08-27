@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# KEEL installer. Installs the official omp runtime when it is missing,
-# then installs the KEEL harness into omp's agent configuration directory.
+# KEEL (omp) installer. Pure ASCII so it renders cleanly everywhere, Windows included.
 set -u
 OMP="${OMP_AGENT_DIR:-$HOME/.omp/agent}"
 
 line(){ printf '+------------------------------------------------------------+\n'; }
-head(){ line; printf '|  KEEL  -  engineering harness for omp                     |\n'; line; }
+head(){ line; printf '|  KEEL  -  autonomous coding harness for omp                 |\n'; line; }
 ok(){   printf '  [ ok ] %s\n' "$1"; }
 skip(){ printf '  [skip] %s (exists; merge by hand)\n' "$1"; }
 step(){ printf '\n  %s\n' "$1"; }
@@ -22,23 +21,20 @@ if [ -z "${OMP_AGENT_DIR:-}" ] && [ -z "${HOME:-}" ]; then
   exit 1
 fi
 
-# KEEL depends on omp. Bootstrap the official distribution only when omp is
-# genuinely unavailable; an existing omp installation is never replaced.
+# KEEL depends on omp. Install the official runtime only when it is missing.
 step "checking omp"
 if command -v omp >/dev/null 2>&1; then
   ok "omp found: $(command -v omp)"
 else
   printf '  omp was not found. Installing the official omp distribution...\n'
   if ! command -v curl >/dev/null 2>&1; then
-    printf '  [FAIL] curl is required to bootstrap omp. Install curl, then re-run.\n'
+    printf '  [FAIL] curl is required to install omp. Install curl, then re-run.\n'
     exit 1
   fi
   if ! curl -fsSL https://omp.sh/install | sh; then
     printf '  [FAIL] official omp installer failed. KEEL was not installed.\n'
     exit 1
   fi
-  # The installer may have changed PATH only for the current shell's startup
-  # files. Refresh the common Bun install location if it exists.
   [ -d "$HOME/.bun/bin" ] && export PATH="$HOME/.bun/bin:$PATH"
   if ! command -v omp >/dev/null 2>&1; then
     printf '  [FAIL] omp installation completed but "omp" is not on PATH.\n'
@@ -47,9 +43,6 @@ else
   fi
   ok "omp installed: $(command -v omp)"
 fi
-
-printf '  Version: '
-if ! omp --version 2>/dev/null; then printf 'unknown\n'; fi
 
 printf '\n  Target: %s\n' "$OMP"
 mkdir -p "$OMP/agents" "$OMP/extensions" "$OMP/skills"
@@ -80,12 +73,11 @@ copy agent/mcp.json           "$OMP/mcp.json"
 
 printf '\n'
 line
-printf '|  KEEL installed on top of omp.                                |\n'
-printf '|  Finish setup (see INSTALL.md):                               |\n'
-printf '|    1. exact model ids in config.yml + agents/coder.md         |\n'
-printf '|    2. language servers (pyright / tsserver / vue)             |\n'
-printf '|    3. browser MCP command in mcp.json                         |\n'
-printf '|    4. run ./verify.sh (or verify.ps1) - must be 0 failed      |\n'
-printf '|  Dashboard:  omp stats     Live agents:  Alt+A (Agent Hub)    |\n'
+printf '|  Files copied. Now finish setup (see INSTALL.md):           |\n'
+printf '|    1. exact model ids in config.yml + agents/coder.md       |\n'
+printf '|    2. language servers (pyright / tsserver / vue)           |\n'
+printf '|    3. browser MCP command in mcp.json                       |\n'
+printf '|    4. run ./verify.sh (or verify.ps1) - must be 0 failed     |\n'
+printf '|  Dashboard:  omp stats     Live agents:  Alt+A (Agent Hub)  |\n'
 line
 printf '\n'
