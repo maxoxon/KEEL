@@ -47,31 +47,9 @@ Incomplete requests are fine. Clarifying missing product decisions is part of th
 
 ## 3. The workflow
 
-The normal implementation path is:
+The normal implementation path is represented by the canonical KEEL workflow visual:
 
-```text
-request
-  ↓
-clarification / brief
-  ↓
-contract
-  ↓
-plan + SCOPE
-  ↓
-REVIEWER · Gate #1
-  ↓
-user approval
-  ↓
-implementation
-  ↓
-conditional REVIEWER · Gate #2
-  ├── revise → coder
-  └── pass
-  ↓
-independent acceptance verification
-  ↓
-closed
-```
+![KEEL controlled engineering workflow](visuals/keel-workflow.png)
 
 Gate #1 and Gate #2 are different checks:
 
