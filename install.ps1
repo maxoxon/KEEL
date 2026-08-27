@@ -1,9 +1,8 @@
-# KEEL installer for Windows PowerShell.
-# Installs the official omp runtime when it is missing, then installs KEEL.
+# KEEL (omp) installer for Windows PowerShell. Pure ASCII output.
 $ErrorActionPreference = "Stop"
 if (-not $env:OMP_AGENT_DIR -and -not $HOME) {
   Write-Host "  [!] HOME is empty and OMP_AGENT_DIR is not set - refusing to write to '\.omp'."
-  Write-Host '      Set OMP_AGENT_DIR and re-run, e.g.'
+  Write-Host '      Set OMP_AGENT_DIR to your real path and re-run, e.g.'
   Write-Host '      $env:OMP_AGENT_DIR = "C:\Users\<you>\.omp\agent"; ./install.ps1'
   exit 1
 }
@@ -22,9 +21,10 @@ function Copy-One($src, $dst) {
 }
 
 Line
-"|  KEEL  -  engineering harness for omp                     |"
+"|  KEEL  -  autonomous coding harness for omp                 |"
 Line
 
+# KEEL depends on omp. Install the official runtime only when it is missing.
 Write-Host "`n  checking omp"
 if (Get-Command omp -ErrorAction SilentlyContinue) {
   Write-Host "  [ ok ] omp found: $((Get-Command omp).Source)"
@@ -47,36 +47,37 @@ if (Get-Command omp -ErrorAction SilentlyContinue) {
   }
   Write-Host "  [ ok ] omp installed: $((Get-Command omp).Source)"
 }
-try { Write-Host "  Version: $(& omp --version 2>$null)" } catch { Write-Host "  Version: unknown" }
 
 Write-Host "`n  Target: $OMP"
 New-Item -ItemType Directory -Force -Path (Join-Path $OMP "agents"),(Join-Path $OMP "extensions"),(Join-Path $OMP "skills") | Out-Null
 
-Write-Host "`n  settings"
+"`n  settings"
 Copy-One "agent\config.yml" (Join-Path $OMP "config.yml")
 Copy-One "agent\models.yml" (Join-Path $OMP "models.yml")
-Write-Host "`n  instructions"
+"`n  instructions"
 Copy-One "agent\AGENTS.md"        (Join-Path $OMP "AGENTS.md")
 Copy-One "agent\APPEND_SYSTEM.md" (Join-Path $OMP "APPEND_SYSTEM.md")
 Copy-One "agent\RULES.md"         (Join-Path $OMP "RULES.md")
-Write-Host "`n  agents"
+"`n  agents"
 Get-ChildItem "agent\agents\*.md" | ForEach-Object { Copy-One $_.FullName (Join-Path $OMP "agents\$($_.Name)") }
-Write-Host "`n  skills"
+
+"`n  skills"
+# One level only: ~/.omp/agent/skills/<name>/SKILL.md - omp does not discover nested groups.
 Get-ChildItem "agent\skills" -Directory | ForEach-Object {
   $src = Join-Path $_.FullName "SKILL.md"
   if (Test-Path $src) { Copy-One $src (Join-Path $OMP "skills\$($_.Name)\SKILL.md") }
 }
-Write-Host "`n  extension + mcp"
+"`n  extension + mcp"
 Copy-One "agent\extensions\keel.ts" (Join-Path $OMP "extensions\keel.ts")
 Copy-One "agent\mcp.json"           (Join-Path $OMP "mcp.json")
 
-Write-Host "`n"
+"`n"
 Line
-"|  KEEL installed on top of omp.                              |"
-"|  Finish setup (see INSTALL.md):                             |"
+"|  Files copied. Now finish setup (see INSTALL.md):           |"
 "|    1. exact model ids in config.yml + agents/coder.md       |"
 "|    2. language servers (pyright / tsserver / vue)           |"
 "|    3. browser MCP command in mcp.json                       |"
 "|    4. run ./verify.sh (or verify.ps1) - must be 0 failed     |"
+"|  Dashboard:  omp stats     Live agents:  Alt+A (Agent Hub)  |"
 Line
-Write-Host ""
+""
