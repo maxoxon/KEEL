@@ -146,6 +146,8 @@ omp may expose more tools than are obvious from an agent's frontmatter. When cha
 
 A read-only role is not safe merely because its Markdown says `read`.
 
+The shipped reviewer is a special case: its declared tools are `read`, `grep`, `glob`, `lsp`, `ast_grep`, and `inspect_image`. It has no browser/MCP tool in its agent definition and is not the browser driver. UI verification through the browser MCP belongs to the contract-bound implementation path when `visual-tooling` is injected.
+
 ---
 
 ## 8. Agent boundaries
@@ -165,7 +167,7 @@ primary/orchestrator
 
 The primary session controls role creation. A role may use the read-only scout where permitted, but the workflow must not become an unrestricted recursive tree.
 
-The coder is the intended project-code writer. Planner, designer, and scout are strictly read-only under KEEL. Reviewer has no project write tools but may perform browser/MCP interaction required to verify a UI; it is therefore not in the strict read-only set. The extension still scope-checks identifiable MCP targets and blocks LSP write actions.
+The coder is the intended project-code writer. Planner, designer, and scout are strictly read-only under KEEL. Reviewer has no project write tools and is read-only for code/analysis, but it also does not have browser/MCP tools in its declared tool set. It can request externally run checks through its structured `needs` output. The extension still scope-checks identifiable MCP targets and blocks LSP write actions for roles that are not allowed to mutate.
 
 ---
 
@@ -197,7 +199,9 @@ compare with contract
 accept or return to coder
 ```
 
-For UI work, browser/MCP verification is preferred where the contract requires behavior visible in the running application. For backend work, use the real endpoint, command, database state, integration path, or other observable behavior when practical.
+For UI work, browser/MCP verification is preferred where the contract requires behavior visible in the running application. The browser interaction is performed by the contract-bound implementation path; the reviewer does not drive the browser and instead judges the evidence or requests the required external check.
+
+For backend work, use the real endpoint, command, database state, integration path, or other observable behavior when practical.
 
 A green self-authored test is useful evidence, but should not be the only evidence when the acceptance contract describes a real-world behavior the test does not exercise.
 
