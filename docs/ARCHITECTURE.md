@@ -2,214 +2,260 @@
 
 > Technical documentation for people who want to understand, audit, extend, or debug KEEL rather than merely use it.
 
-KEEL is an engineering harness built on top of [omp](https://omp.sh/). It does not replace the coding-agent runtime. omp supplies the runtime primitives — sessions, tools, subagents, LSP, MCP, memory, extensions, and model routing — while KEEL adds an opinionated engineering protocol and mechanical enforcement around those primitives.
+KEEL is an engineering harness built on top of [omp](https://omp.sh/). It does not replace the coding-agent runtime. omp supplies the runtime primitives — sessions, tools, subagents, LSP, MCP, memory, extensions, configuration, model routing, and terminal UI — while KEEL adds an opinionated engineering protocol and mechanical enforcement around those primitives.
 
-This document describes the implementation model as it exists in the repository. It is deliberately more detailed than the README and is intended to be read alongside `MANIFEST.md` and the source under `agent/`.
+This document describes the implementation model represented by the repository's agent definitions, `agent/extensions/keel.ts`, installers, verification scripts, templates, and technical documentation. When this document disagrees with code, the code wins.
 
 ---
 
-## 1. Design thesis
+## 1. Architectural thesis
 
 The central KEEL assumption is:
 
-> If an engineering rule matters, it should not exist only as a prompt.
+> **If an engineering rule matters, it should not exist only as a prompt.**
 
 A language model can forget an instruction, reinterpret it, lose context after compaction, or decide that a shortcut is justified. KEEL therefore separates responsibilities into three layers:
 
-1. **Prompt/instruction layer** — tells agents what they are supposed to do.
-2. **omp runtime layer** — provides tool and agent primitives and applies its own configuration semantics.
-3. **KEEL enforcement layer** — observes tool calls and lifecycle events and blocks or modifies unsafe transitions.
+1. **Instruction layer** — tells agents what they are supposed to do.
+2. **omp runtime layer** — provides tools, agents, sessions, context, LSP, MCP, memory, model routing, and extension lifecycle.
+3. **KEEL enforcement layer** — observes tool calls and lifecycle events and blocks or rewrites unsafe transitions.
 
-The result is intentionally redundant. A rule can be explained to the model and independently enforced by the harness.
+The result is deliberately redundant. A rule can be explained to the model and independently enforced by the harness.
 
 ```text
-                    USER INTENT
-                         |
-                         v
-              +----------------------+
-              | KEEL instruction     |
-              | / contract / plan    |
-              +----------+-----------+
-                         |
-                         v
-              +----------------------+
-              | omp runtime           |
-              | models / tools / task |
-              | sessions / MCP / LSP  |
-              +----------+-----------+
-                         |
-                         v
-              +----------------------+
-              | KEEL extension       |
-              | lifecycle + guards   |
-              +----------------------+
-                         |
-                         v
-                 PROJECT STATE
+                         USER INTENT
+                              │
+                              ▼
+                    ┌───────────────────┐
+                    │ KEEL instructions │
+                    │ contract / plan   │
+                    └─────────┬─────────┘
+                              │
+                              ▼
+                    ┌───────────────────┐
+                    │    omp runtime    │
+                    │ tools / agents    │
+                    │ sessions / MCP    │
+                    │ LSP / memory      │
+                    └─────────┬─────────┘
+                              │
+                              ▼
+                    ┌───────────────────┐
+                    │ KEEL extension    │
+                    │ lifecycle + guards│
+                    └─────────┬─────────┘
+                              │
+                              ▼
+                       PROJECT STATE
 ```
 
-KEEL is therefore closer to a **control plane** than to another agent.
+KEEL is therefore closer to a **control plane** than to another coding agent.
 
 ---
 
-## 2. Repository layout
+## 2. What KEEL owns — and what omp owns
 
-The repository has three important categories of material.
+The boundary is intentional.
 
-```text
-KEEL/
-├── agent/
-│   ├── AGENTS.md
-│   ├── APPEND_SYSTEM.md
-│   ├── RULES.md
-│   ├── config.yml
-│   ├── models.yml
-│   ├── mcp.json
-│   ├── agents/
-│   │   ├── planner.md
-│   │   ├── reviewer.md
-│   │   ├── coder.md
-│   │   ├── designer.md
-│   │   └── scout.md
-│   ├── extensions/
-│   │   └── keel.ts
-│   └── skills/
-│       └── <skill>/SKILL.md
-├── docs/
-│   └── ARCHITECTURE.md
-├── docs-templates/
-├── tests/
-├── install.sh
-├── install.ps1
-├── verify.sh
-├── verify.ps1
-├── INSTALL.md
-├── USAGE.md
-├── MANIFEST.md
-└── README.md
-```
+### omp owns
 
-The `agent/` tree is the installable harness. The installer places it under `~/.omp/agent/` (or the configured `OMP_AGENT_DIR`). `docs/` in this repository contains developer-facing documentation; `docs/` inside a project is runtime state created by KEEL during a task.
+- model invocation and provider routing;
+- built-in tools and their native permission tiers;
+- task/subagent execution;
+- sessions, compaction, branching, and handoff;
+- LSP and MCP infrastructure;
+- memory and configuration merging;
+- terminal UI and runtime lifecycle;
+- extension loading and hook/event dispatch.
 
-That distinction is important: **repository `docs/` is documentation; project `docs/` is task state.**
+### KEEL owns
+
+- task contracts and acceptance criteria;
+- task typing;
+- planning and machine-readable scope;
+- the human plan-approval gate;
+- role separation and spawn topology;
+- mutation scope enforcement;
+- control-file ownership;
+- pre-change checkpoints;
+- review handoff integrity;
+- single-writer sequencing;
+- task-state and acceptance enforcement;
+- workflow-specific runtime guards.
+
+KEEL should use an omp primitive when one already exists instead of reimplementing it.
 
 ---
 
-## 3. Instruction reach: why there are three instruction files
+## 3. Instruction reach
 
-omp does not give every session the same instruction context. KEEL relies on that behavior rather than pretending every file reaches every agent.
+omp does not give every session the same instruction context. KEEL deliberately uses three instruction layers.
 
-### `AGENTS.md` — primary-only persona
+### `agent/AGENTS.md` — primary-only persona
 
-`AGENTS.md` defines the orchestrator's role and operating posture. omp filters it out of structured subagent context.
+Defines the orchestrator's identity, operating posture, role map, and user-facing language. omp filters this primary material out of structured subagent context.
 
-It is therefore appropriate for information that belongs to the primary session: orchestration, calibration of user questions, and the high-level identity of the five roles.
+### `agent/APPEND_SYSTEM.md` — primary-only harness operation
 
-### `APPEND_SYSTEM.md` — primary-only harness operation
+Defines how the orchestrator runs the pipeline: intake, planning, review, approval, implementation, verification, state handling, parallelism, compaction, and handoff behavior. It is not forwarded wholesale to subagents.
 
-This contains the operational description of the KEEL pipeline: phases, state transitions, stop points, memory/compaction behavior, parallelism, skills, and what to do when blocked.
+### `agent/RULES.md` — shared invariants
 
-omp's task executor does not forward this append-system prompt to subagents. This is intentional. A subagent gets its own role document plus the shared hard rules rather than inheriting the entire orchestrator protocol.
+Contains cross-agent rules that must survive role boundaries: evidence over status, no mocks in done, decomposition, no invented facts, and stop-on-repeated-blocker behavior.
 
-### `RULES.md` — cross-agent invariants
+The consequence is important:
 
-`RULES.md` is the shared invariant layer. omp forwards the configured rules to subagents and treats them as always-applicable.
+> **Every agent definition must be self-sufficient.**
 
-Rules belong here when violating them would undermine the system regardless of role: no mocks when live verification is required, never invent facts, respect decomposition, do not bypass the pipeline, and similar invariants.
-
-### The consequence
-
-Every agent definition must be **self-sufficient**. A coder cannot depend on `APPEND_SYSTEM.md` magically appearing in its context.
-
-This is one of the easiest mistakes to make when modifying KEEL: changing a primary instruction and assuming the same text is now visible to subagents.
+A coder cannot depend on `APPEND_SYSTEM.md` magically appearing in its context. The role file and shared rules are the agent's actual instruction surface.
 
 ---
 
 ## 4. Agent topology
 
-KEEL uses five roles around the primary session.
+KEEL ships five role agents around the primary session.
 
 ```text
-                         PRIMARY
-                     ORCHESTRATOR
-                           |
-          +----------------+----------------+
-          |                |                |
-       PLANNER           SCOUT           DESIGNER
-          |
-       approval
-          |
-        CODER
-          |
-       REVIEWER
-          |
-          +------> next coder action
+                              PRIMARY
+                           ORCHESTRATOR
+                                │
+             ┌──────────────────┼──────────────────┐
+             │                  │                  │
+             ▼                  ▼                  ▼
+          PLANNER             SCOUT             DESIGNER
+             │
+             ▼
+       CONTRACT + PLAN
+             │
+             ▼
+       REVIEWER · GATE #1
+             │
+             ▼
+          APPROVAL
+             │
+             ▼
+           CODER
+             │
+             ▼
+       IMPLEMENTATION
+             │
+             ├───────────────┐
+             ▼               │
+       REVIEWER · GATE #2    │
+        conditional          │
+             │               │
+        ┌────┴────┐          │
+        ▼         ▼          │
+      REVISE     PASS        │
+        │         │          │
+        └───► CODER          │
+                  │          │
+                  └──────────┘
+                       │
+                       ▼
+              INDEPENDENT VERIFY
+                       │
+                       ▼
+                    ACCEPTED
 ```
+
+The **primary session** is the orchestrator and is not a normal role-agent file.
 
 ### Orchestrator
 
-Owns the workflow and the control documents. It does not write product code.
+Owns the workflow and canonical control documents. It does not write product code or product artifacts. Its allowed writes are the project control documents under `docs/`:
+
+- `contract.md`
+- `plan.md`
+- `report.md`
+- `review.md`
+- `decisions.md`
+- `PHASE_REPORT_<slug>.md`
+
+The extension enforces this code fence for both normal file tools and shell-based writes.
 
 ### Planner
 
-Reads the repository and produces the plan and acceptance contract. It may use LSP for navigation, but LSP mutation is blocked by KEEL.
+Read-only. Produces the plan and doneness contract. It declares the authoritative `SCOPE` block and lists affected files. The orchestrator writes the planner's result into project state.
 
 ### Coder
 
-The only role intended to mutate product code. It receives the approved contract and scope and reports structured completion evidence.
+The only role intended to mutate project code. It receives the contract, type rules, approved scope, and — when required — the reviewer's exact next instruction. It returns structured evidence.
 
 ### Reviewer
 
-Independently evaluates the implementation and produces a structured verdict plus the exact next instruction for the coder when work remains.
+A read-only project-code gatekeeper with two distinct jobs:
+
+- **Gate #1, before code:** reviews the contract and plan for completeness, dependency/blast-radius sanity, scope, over-engineering, real-data acceptance criteria, and coherence between fields. It returns a structured verdict and `next_prompt`. fileciteturn39file0L2-L2
+- **Gate #2, after code, conditionally:** re-enters only when a native check failed twice, behavior cannot be auto-checked, the diff is larger than roughly six files, or a sensitive zone changed. It reads the actual diff, audits evidence and scope, and either passes, requests revision, or escalates. fileciteturn39file0L2-L2
+
+The reviewer has no `edit`, `write`, or `bash` tools. It may use browser/MCP interaction for UI verification, which is why it is intentionally not part of KEEL's strict read-only-agent set.
 
 ### Designer
 
-Read-only visual/UX exploration. It does not implement the result.
+Read-only UI/UX exploration. It proposes concepts, screen states, and flows; it never implements them.
 
 ### Scout
 
-Cheap, read-only reconnaissance. Other agents can use it for repository discovery without turning every investigation into another writer.
+Fast, cheap, read-only repository reconnaissance. It answers narrow factual questions with file/line evidence and can map broad code paths when explicitly asked.
 
-The topology is mechanically constrained: the primary can spawn role agents; a role agent can spawn only the read-only scout. This prevents recursive agent trees and prevents parallel writers from appearing accidentally.
+### Spawn topology
+
+The primary can spawn role agents. A role agent can spawn only `scout`. No role agent can recursively create another writer or summon its own reviewer.
+
+This topology is enforced in `keel.ts`, including batched omp task calls.
 
 ---
 
-## 5. The task state machine
+## 5. The real workflow state machine
 
-KEEL does not treat the chat transcript as the source of truth. The project filesystem is the durable state machine.
-
-A simplified lifecycle is:
+The high-level lifecycle is:
 
 ```text
 REQUEST
-   |
-   v
+   │
+   ▼
 BRIEF / CLARIFICATION
-   |
-   v
-CONTRACT + PLAN
-   |
-   v
+   │
+   ▼
+CONTRACT
+   │
+   ▼
+PLAN + SCOPE
+   │
+   ▼
+REVIEWER · GATE #1
+   │
+   ▼
 USER APPROVAL
-   |
-   v
+   │
+   ▼
 IMPLEMENTATION
-   |
-   v
-REVIEW
-   |       \
-   |        \ reject / changes required
-   |         +-----------> IMPLEMENTATION
-   v
-INDEPENDENT VERIFICATION
-   |
-   +---- fail ----> IMPLEMENTATION
-   |
-   v
-ACCEPTED
+   │
+   ├─────────────────────────────┐
+   ▼                             │
+CONDITIONAL REVIEW · GATE #2    │
+   │                             │
+   ├── revise ───────────────────┘
+   │
+   ▼
+INDEPENDENT ACCEPTANCE
+   │
+   ├── fail ───────────────► IMPLEMENTATION
+   │
+   ▼
+ACCEPTED / CLOSED
 ```
 
-The actual state is reconstructed from files such as:
+The second review is **conditional**, not a mandatory step after every coder run. The reviewer agent is explicit that repeated native-check failure, uncheckable behavior, large diffs, and sensitive zones trigger it. fileciteturn39file0L2-L2
+
+The implementation loop is bounded. Repeated mechanical blocks eventually escalate rather than causing an infinite autonomous loop.
+
+---
+
+## 6. Durable task state
+
+KEEL does not treat the chat transcript as the source of truth. Project state lives on disk:
 
 ```text
 project/
@@ -222,483 +268,474 @@ project/
     └── PHASE_REPORT_<slug>.md
 ```
 
-This makes `/clear`, compaction, or a fresh session survivable. The next primary session can inspect the same state instead of trusting conversational memory.
+### `contract.md`
+
+Defines what success means and contains the task type plus frontend/backend/wiring/success-criterion fields.
+
+### `plan.md`
+
+Defines milestones, affected files, and the authoritative machine-readable `SCOPE` block.
+
+### `report.md`
+
+Contains the task ledger, milestone ledger, implementation round count, blockers, and final acceptance checklist. An open task row is what gives the current plan active force; when all tasks are closed, the old plan is not allowed to constrain the next task.
+
+### `review.md`
+
+A stamped courtesy copy of the reviewer's captured `next_prompt`. The runtime's in-memory relay is the load-bearing path; the file exists so a human can inspect what was relayed and so the current plan can be identified after restart.
+
+### `decisions.md`
+
+Durable engineering decisions and rationale. It prevents important choices from existing only in model memory.
+
+### `PHASE_REPORT_<slug>.md`
+
+Per-session/subagent findings. These are not substitutes for the canonical contract, plan, report, or review state.
+
+This separation makes `/clear`, compaction, and fresh sessions survivable.
 
 ---
 
-## 6. Contract and scope are security boundaries
+## 7. Contract and scope are boundaries
 
 Two artifacts are particularly important.
 
-### `docs/contract.md`
+### Contract
 
-The contract defines what success means. Contract-bound agents (`coder` and `reviewer`) cannot be spawned until the file exists and unresolved placeholders such as `<...>` or `TBD` have been removed.
+Contract-bound agents (`coder` and `reviewer`) cannot be spawned until `docs/contract.md` exists and contains no unresolved placeholders. The extension injects the contract into their task payload so the agent does not depend on the orchestrator remembering to paste it.
 
-The extension also injects the contract into the task payload sent to those agents. This avoids relying on the orchestrator to paste the right version manually.
+### Scope
 
-### `docs/plan.md`
+The planner's `SCOPE` block defines what the active task may touch.
 
-The plan contains the implementation plan and a machine-readable `SCOPE` section. The scope is the set of existing files/resources the task is allowed to mutate.
+```text
+<!-- SCOPE -->
+- src/orders/Filter.tsx
+- api/routes/orders.py
+- assets/ui/table.png
+<!-- END SCOPE -->
+```
 
-The critical property is ownership:
+The scope is enforced against:
 
-> The coder can use the scope, but it cannot redefine the scope.
+- `edit` / `write` / `ast_edit`;
+- shell writes through `bash` / `eval`;
+- LSP mutation actions;
+- identifiable MCP targets.
 
-Changing scope requires going back through planning and the user approval gate.
+The guard is intentionally fail-closed when an active task has no usable scope. Scope is not widened by the orchestrator or coder; it is changed through replanning.
 
-The scope check covers more than ordinary file writes. KEEL also considers shell writes, LSP mutation attempts, and identifiable MCP targets so that changing the interface used to mutate something does not trivially bypass the boundary.
+The scope matcher normalizes path separators and collapses `.` / `..` traversal before comparison. Broad entries such as `.`, `*`, `**`, `src`, `app`, and `project` are rejected as unusably broad.
 
 ---
 
-## 7. Mechanical guards
+## 8. Review protocol and verbatim handoff
 
-The extension in `agent/extensions/keel.ts` is the enforcement layer. The source currently implements the following families of guards.
+The reviewer output is structured:
 
-### 7.1 Plan gate
+```text
+reviewer
+  ├── verdict: pass | revise | escalate
+  ├── next_prompt: exact next instruction for coder
+  ├── findings: optional structured findings
+  └── needs: optional actions only the caller can perform
+```
 
-The coder cannot start until the user confirms the plan. This is the principal human approval point.
+When Gate #1 or conditional Gate #2 requires coder action, the extension captures `next_prompt` from the blocking reviewer result and injects it into the coder task **verbatim**. The orchestrator does not paraphrase it. fileciteturn39file0L2-L2
 
-### 7.2 Primary code fence
+The relay is consumed once. A stale review cannot remain queued and unexpectedly reappear later.
 
-The orchestrator may write only the KEEL control documents it owns. Product code and product artifacts are blocked even if the orchestrator tries to reach them indirectly.
+The review file is stamped with a content fingerprint of the plan so a review of an older plan cannot satisfy the gate for a newly written plan.
 
-The guard covers:
+---
 
-- `edit`
-- `write`
-- `ast_edit`
-- shell commands that write to disk
+## 9. Mechanical enforcement
 
-This matters because a guard that protects `write` but permits `bash 'cat > file'` is not actually a boundary.
+`agent/extensions/keel.ts` is the enforcement layer. The current implementation contains these guard families.
 
-### 7.3 Checkpoint
+### 9.1 Plan approval gate
 
-Before the first mutation in a git worktree, KEEL creates a non-destructive restore point using `git stash create` and stores the resulting object under:
+Before the coder starts, the interactive primary session asks the user to approve the reviewed plan. A rejected approval blocks the coder. Headless runs still seed the acceptance ledger, but do not invent a UI confirmation.
+
+### 9.2 Primary-session code fence
+
+The orchestrator may write only the canonical control documents under project `docs/`. It cannot write product code, product docs, data, or assets directly. The same boundary applies to shell redirects and other shell write paths.
+
+### 9.3 Checkpoint
+
+Before the first mutation in a Git worktree, KEEL uses `git stash create` and stores the resulting object at:
 
 ```text
 refs/keel/checkpoint
 ```
 
-`git stash create` does not modify the working tree or stash list. It gives KEEL a stable reference that can be inspected later.
+This is non-destructive: the working tree, index, and stash list are not modified.
 
-### 7.4 Loud errors and empty artifacts
+### 9.4 Loud tool failures
 
-Failed tool calls are annotated so the model cannot casually treat them as successful work. Likewise, a command that exits successfully but produces no expected artifact is made visible as an empty artifact condition.
+Failed tool calls are annotated so a model cannot casually treat an error as missing data or success.
 
-### 7.5 Systemic contract gate
+### 9.5 Empty-artifact visibility
 
-Coder/reviewer spawns require a valid contract. This turns a convention into a precondition.
+Commands that appear successful but produce no expected artifact are surfaced as an empty-artifact condition rather than being treated as proof of success.
 
-### 7.6 Scope lock
+### 9.6 Systemic contract gate
 
-Mutations outside the declared scope are blocked. In a harness project, absence of a usable scope is treated conservatively rather than as permission to write anywhere.
+`coder` and `reviewer` cannot start without a resolved contract.
 
-### 7.7 Verbatim review relay
+### 9.7 Unresolved-placeholder gate
 
-The reviewer's `next_prompt` is captured from structured output and delivered to the coder through the extension. The orchestrator does not paraphrase it.
+Open placeholders in the contract (`<...>`, `TBD`, `???` patterns supported by the runtime) prevent contract-bound spawns.
 
-This is deliberately mechanical: paraphrasing a review introduces another model interpretation between the reviewer and the implementer.
+### 9.8 Scope lock
 
-The relay is consumed once. A stale review cannot remain queued and unexpectedly reappear later.
+Active mutations are checked against the planner's `SCOPE`. Unknown or unidentifiable mutation targets are not automatically treated as harmless when they can affect a project resource.
 
-### 7.8 Spawn topology
+### 9.9 Verbatim review relay
 
-KEEL validates every agent in a task call, including omp's batched task shape. The extension supports both:
+The reviewer's `next_prompt` is captured and injected without paraphrase.
 
-```text
-{ agent, task }
-```
+### 9.10 Spawn topology
 
-and the default batched shape:
+The extension checks every agent in a task call, including omp's batched `{ context, tasks: [...] }` shape. Only the primary may choose arbitrary role agents; subagents may spawn only `scout`.
 
-```text
-{ context, tasks: [{ agent, task, name }] }
-```
+### 9.11 Acceptance/session-stop guard
 
-This is important because a guard that only reads the top-level `agent` field silently fails when omp uses batching.
+After real work has mutated the session, `session_stop` prevents the primary from settling while the final acceptance checklist still has open items. The extension caps its pushbacks so it cannot trap a session forever.
 
-### 7.9 Acceptance gate
+### 9.12 Milestone decomposition
 
-`session_stop` prevents the primary session from settling while the final acceptance checklist is still open after real work has begun. Pushback is capped so a broken model cannot create an infinite loop.
+`large-feature`, `architecture-change`, and `new-project` require a populated milestone ledger before the coder starts. The runtime checks the durable ledger rather than trusting a prompt saying "decompose first".
 
-### 7.10 Milestone decomposition
+### 9.13 Harness self-protection
 
-Large task types — `large-feature`, `architecture-change`, and `new-project` — require a milestone ledger before coding begins. Size is therefore represented as durable state rather than a model's vague judgement.
+A live session cannot rewrite its installed `keel.ts`, agent definitions, `RULES.md`, or core config through the normal harness path. The enforcement mechanism cannot be editable by the agents it constrains.
 
-### 7.11 Harness self-protection
+Harness development therefore happens from a terminal or from the KEEL repository as an ordinary, separately scoped engineering task.
 
-A live session cannot rewrite its own enforcement layer, agent definitions, `RULES.md`, or core config. Otherwise a constrained agent could simply delete the rule that constrained it.
+### 9.14 Control-file ownership
 
-Changes to the harness itself are expected to happen from the terminal or through a separate, explicitly scoped engineering task.
+Subagents cannot rewrite the orchestrator's contract, plan/SCOPE, report, review, or decisions. This prevents a coder from widening its own scope or forging its own review state.
 
-### 7.12 Control-file ownership
+### 9.15 Task-type mechanics
 
-Subagents cannot write the orchestrator's control files. In particular:
+`Тип:` in `docs/contract.md` must resolve to a known type. The type selects rules and per-spawn `effort`, and `audit` refuses the coder entirely.
 
-- coder cannot widen `docs/plan.md` scope;
-- coder cannot forge `docs/review.md`;
-- reviewer cannot rewrite the contract it is judging;
-- subagent reports go into `PHASE_REPORT_<slug>.md`.
+### 9.16 Strict read-only enforcement
 
-### 7.13 Task type
+Planner, designer, and scout are blocked from tools that are not recognized as read-only. This covers MCP because an agent's normal `tools:` allowlist describes omp built-ins, while MCP tools are attached separately.
 
-`Тип:` in the contract resolves to a known task type. The type changes mechanics — rules injected into spawns, effort level, and whether the coder is allowed at all for an audit — rather than merely changing wording.
+The reviewer is intentionally excluded from this strict set because it may use browser/MCP interaction for UI verification. Its lack of project write tools, scope enforcement, and LSP write blocking still prevent it from implementing project code.
 
-### 7.14 Read-only enforcement
+### 9.17 Single writer
 
-Planner, designer, and scout are blocked from tools that are not recognised as read operations. This is particularly important for MCP because an agent's normal `tools:` allowlist describes omp built-ins; MCP tools can otherwise be exposed separately.
+The primary cannot launch two coders concurrently, cannot launch a coder alongside the reviewer that judges it, and cannot start another coder while one is active. Read-only scouts may fan out.
 
-### 7.15 One writer at a time
+### 9.18 LSP write protection
 
-KEEL prevents a task call from running two coders concurrently, a coder alongside its reviewer, or a second coder while the first is still active. Read-only scouts can fan out.
-
-### 7.16 LSP write protection
-
-LSP remains available for navigation and diagnostics, but mutation actions such as rename, file rename, and applied code actions are blocked. The coder uses the ordinary edit/write path, where checkpoint and scope enforcement apply.
+LSP remains available for navigation and diagnostics. Rename/file-rename and applied code actions are treated as mutations and blocked for read-only roles; the coder is expected to mutate through `edit` / `write` / `ast_edit`, where checkpoint and scope enforcement apply.
 
 ---
 
-## 8. Why the extension observes tool calls
+## 10. Shell and MCP mutation surfaces
 
-The extension is not a second agent. It is a runtime policy layer.
+A central design rule is:
 
-Conceptually it observes:
+> **Protect the mutation, not only the tool name.**
+
+### Shell
+
+`bash` and `eval` are universal execution surfaces. KEEL therefore detects write intent rather than blocking all shell commands.
+
+The detector covers common POSIX writes such as `rm`, `mv`, `cp`, `tee`, `ln`, `touch`, `mkdir`, redirects, in-place edits, and inline interpreter writes. It also recognizes PowerShell and Windows command forms.
+
+Package-manager installs such as `npm install` or `pip install` are deliberately treated differently from direct project writes because dependency installation is ordinary engineering work.
+
+### MCP
+
+MCP tools can target actors, assets, scene objects, or remote resources that do not look like filesystem paths. KEEL extracts identifiable target fields such as `actor`, `asset`, `object`, `target`, and related path fields and feeds them into the scope check where possible.
+
+A tool with no identifiable target — for example a browser navigation action — cannot always be path-scoped. The runtime therefore combines target-aware scope enforcement with role-specific restrictions and the review/verification workflow rather than pretending every MCP action is a file write.
+
+---
+
+## 11. Task types
+
+Task type is persisted in the contract because it changes mechanics.
+
+| Type | Runtime behavior |
+|---|---|
+| `bug-fix` | High effort; root cause must be established with the debugger; smallest safe fix |
+| `small-feature` | Medium effort; smallest safe extension |
+| `large-feature` | High effort; milestone decomposition and per-milestone verification |
+| `refactor` | High effort; behavior-preservation checks before and after |
+| `architecture-change` | High effort; rationale, dependencies, rollback points, staged compatibility |
+| `new-project` | Medium effort; MVP-first independently verifiable milestones |
+| `audit` | High effort; read-only; coder is mechanically refused |
+| `adopt` | Medium effort; describe an existing project from filesystem evidence without rewriting it |
+
+The source contains a `gates` field in the task-type data structure, but the current runtime's concrete human approval mechanism is the single plan-approval confirmation immediately before coder execution. Documentation must not describe unused gate-count metadata as a second or third active confirmation flow.
+
+---
+
+## 12. Structured output as protocol
+
+KEEL relies on structured output wherever a downstream stage needs a machine-readable decision.
 
 ```text
-model -> tool_call -> KEEL hook -> omp tool execution
-                         |
-                         +--> allow
-                         +--> block + reason
-                         +--> rewrite input
-
-omp tool result -> KEEL hook -> model-visible result
+planner  → plan + contract
+a reviewer → verdict + next_prompt
+coder    → contract_met + evidence + did_not_verify + remaining
 ```
 
-The extension uses omp's hook API. For `tool_call`, a hook can block a call with a reason or return replacement input. For `tool_result`, KEEL can annotate what the model sees.
+The important fields are not cosmetic. A field that exists only in a prompt but is not consumed or verified is not a protocol field.
 
-This allows KEEL to enforce policy without requiring a privileged second model to police the first one.
+When changing a schema, update:
+
+1. the producing agent;
+2. the consumer in the extension/orchestrator;
+3. deterministic verification/tests;
+4. technical documentation if the behavior is user-visible.
 
 ---
 
-## 9. Structured output is part of the protocol
+## 13. Live verification and acceptance
 
-KEEL relies on structured agent outputs where a downstream stage needs a machine-readable decision.
+KEEL distinguishes **implementation evidence** from **acceptance evidence**.
 
-Examples include:
+A coder can report that a command returned `0`, a test passed, or an endpoint returned `200`. Those are useful signals, but the cross-agent invariant is that status is not state.
+
+The acceptance contract should be checked against observable reality:
 
 ```text
-planner  -> plan + contract
-reviewer -> verdict + next_prompt
-coder    -> contract_met + evidence + did_not_verify + remaining
+source code
+    │
+    ▼
+run the real system
+    │
+    ▼
+read the resulting state
+    │
+    ▼
+compare with contract
+    │
+    ▼
+accept / return to implementation
 ```
 
-The point is not aesthetic JSON. The structure is what lets the runtime safely consume a decision without asking another model to reinterpret prose.
-
-When adding or changing a field, check all three layers:
-
-1. the agent's output schema/instructions;
-2. the consumer in `keel.ts` or the orchestrator;
-3. the verifier/tests that prove the field is actually used.
-
-A field that exists only in a prompt is not a protocol field.
+For frontend work, the extension points contract-bound agents at `skill://visual-tooling` when the contract contains a real frontend section. That procedure requires browser interaction and real output rather than source-code inspection as UI proof.
 
 ---
 
-## 10. Task types
+## 14. Skills
 
-Task type is stored in the contract so it survives context loss.
-
-| Type | Typical gate level | Intent |
-|---|---:|---|
-| `bug-fix` | 1 | Establish root cause and make the smallest safe fix |
-| `small-feature` | 1 | Extend existing behavior with minimal surface area |
-| `large-feature` | 3 | Implement in explicit milestones and verify each one |
-| `refactor` | 1 | Preserve behavior while changing structure |
-| `architecture-change` | 3 | Make architecture decisions explicit and reversible |
-| `new-project` | 3 | Establish a new system in verified increments |
-| `audit` | special | Inspect and report; do not hand implementation to the coder |
-
-The exact operational rules live in the harness instructions and extension. This table is the conceptual model, not a substitute for source-level behavior.
-
----
-
-## 11. Skills
-
-Skills are stored one level deep:
+Skills are stored exactly one level below the skill root:
 
 ```text
 ~/.omp/agent/skills/<name>/SKILL.md
 ```
 
-omp injects `autoloadSkills` for agents that declare them. KEEL uses skills to package reusable engineering behavior instead of expanding every agent prompt indefinitely.
+omp injects `autoloadSkills` before an agent's first prompt when a role declares them. KEEL uses skills to package reusable discipline without turning every agent definition into a giant prompt.
 
-Current roles include skills for:
+Current shipped skills:
 
-- surgical/minimal coding;
-- evidence-based decisions;
-- worktree freshness;
-- agent briefing;
-- visual tooling;
-- project-state handling;
-- conservative design principles.
+- `karpathy` — coder discipline before implementation;
+- `surgical-coding` — smallest correct change;
+- `ponytail` — avoid unnecessary construction;
+- `worktree-freshness` — do not infer absence from a stale checkout;
+- `decision-guard` — judge decisions from evidence;
+- `agent-brief` — structured coder briefs and completion criteria;
+- `visual-tooling` — browser-based UI verification procedure;
+- `project-state` — durable task state, compaction, and session continuity guidance.
 
-A subtle but important property: the primary orchestrator is not an ordinary subagent, so its operating material belongs in `APPEND_SYSTEM.md` rather than `autoloadSkills`.
+The `designer` role intentionally has no permanent autoloaded skill in the shipped definition.
+
+The repository's `tests/doc-conformance.sh` checks the assumptions KEEL makes about omp's skill discovery and precedence against a local omp source tree.
 
 ---
 
-## 12. Configuration model
+## 15. Configuration model
 
-KEEL installs its configuration into omp's user agent directory. The important distinction is between **harness-critical settings** and **user-owned model settings**.
+`agent/config.yml` contains harness-critical settings plus model-role placeholders.
 
-`config.yml` contains model-role placeholders and harness behavior such as memory, compaction, LSP, approval mode, and shell safety patterns.
+Important areas include:
 
-Model IDs are deliberately left for the user to choose. KEEL should not silently impose a commercial provider or a particular model.
+- `modelRoles`;
+- mnemopi memory;
+- automatic image routing to the `vision` role;
+- compaction;
+- LSP and AST grep;
+- effort support;
+- `yolo` peripheral approval behavior;
+- shell safety patterns;
+- provider isolation.
 
-omp's configuration layering is conceptually:
+The coder model is intentionally pinned in `agent/agents/coder.md` rather than being a natural role alias. The shipped value is `KEEL_SETUP_REQUIRED` and must be replaced with a strict-schema model during setup.
+
+`agent/models.yml` is intentionally minimal. OpenRouter is a built-in omp provider, so a custom provider block is not required for normal OpenRouter usage.
+
+`agent/mcp.json` configures the browser MCP entry point used by UI verification. Its presence does not prove the external MCP command is available or functioning.
+
+Credentials belong to omp's authentication mechanism, not KEEL configuration files.
+
+---
+
+## 16. Installation architecture
+
+KEEL is not a separate executable runtime. The installers place its configuration, role definitions, skills, MCP configuration, and extension into omp's agent directory:
 
 ```text
-built-in defaults
-      < user config (~/.omp/agent)
-      < project config (.omp)
-      < overlay
+~/.omp/agent/
+├── AGENTS.md
+├── APPEND_SYSTEM.md
+├── RULES.md
+├── config.yml
+├── models.yml
+├── mcp.json
+├── agents/
+├── extensions/
+└── skills/
 ```
 
-Project configuration can therefore override user configuration. Credentials are not intended to be stored in `config.yml`; authentication belongs to omp's credential mechanisms.
-
----
-
-## 13. Live verification
-
-KEEL distinguishes **implementation evidence** from **acceptance evidence**.
-
-A coder saying:
-
-> "the endpoint should work"
-
-is not acceptance evidence.
-
-A green test written by the same coder is useful engineering evidence, but KEEL's final acceptance contract is checked independently by the orchestrator.
-
-For frontend work, the visual tooling path can use browser MCP to exercise the running application. This is why `mcp.json`, `visual-tooling`, and the `Frontend` contract field exist together.
-
-The philosophy is:
+The installer first checks for `omp`.
 
 ```text
-source code says it should work
-            |
-            v
-       run the system
-            |
-            v
-       observe reality
-            |
-            v
-       compare to contract
+check omp
+   │
+   ├── found ───────────────► keep existing omp
+   │
+   └── missing
+         │
+         ▼
+   run official omp installer
+         │
+         ├── failure ───────► stop; do not install KEEL
+         │
+         └── success
+                │
+                ▼
+          verify omp is available
+                │
+                ▼
+          install KEEL layer
 ```
 
-Live verification is not a promise that every possible production failure can be detected. It is a deliberate attempt to move acceptance from static plausibility toward observable behavior.
+Existing differing destination files are not silently overwritten. The installer reports `skip` and asks the user to merge manually.
 
 ---
 
-## 14. Failure and retry model
+## 17. Verification architecture
 
-KEEL expects implementation and review to be iterative.
+There are two distinct deterministic verification layers.
 
-```text
-CODE
-  |
-  v
-REVIEW
-  |
-  +---- approved ----> VERIFY
-  |
-  +---- changes -----> CODE
-                         |
-                         +---- repeat
-```
+### Installation verifier
 
-The implementation loop is bounded. A task that repeatedly hits the same wall must eventually surface the blocker instead of becoming an autonomous infinite repair loop.
+`verify.sh` / `verify.ps1` inspect the installed filesystem and check required files, model placeholders, agent identity, extension guard markers, skills, configuration, shell-write detection, and other structural invariants.
 
-Similarly, acceptance pushback is bounded. The system should fail visibly and ask for a new decision rather than consume unlimited tokens trying to satisfy an impossible state.
+They do not ask an LLM whether installation succeeded.
+
+### Upstream conformance check
+
+`tests/doc-conformance.sh` takes a local omp source checkout and checks that KEEL's assumptions about hooks, task agents, skills, config layering, context reach, and approval behavior still match the upstream runtime/documentation.
+
+This is separate because the install verifier must work without an omp source checkout, while conformance testing explicitly depends on one.
+
+### Runtime smoke evaluation
+
+`docs-templates/smoke-eval.md` defines live behavioral checks for model swaps: routing, reviewer read-only behavior, done-report discipline, image routing, and the plan approval gate.
+
+A static verifier cannot prove model behavior. A model smoke test cannot prove filesystem layout. Both are necessary.
 
 ---
 
-## 15. Checkpoints and recovery
+## 18. Checkpoints and recovery
 
 The checkpoint is intentionally non-destructive.
 
-Before mutation:
-
 ```bash
 git stash create
+git update-ref refs/keel/checkpoint <sha>
 ```
 
-produces an object representing the current worktree state. KEEL stores it as:
+KEEL's implementation performs the equivalent programmatically. `git stash create` does not change the working tree, index, or stash list.
 
-```text
-refs/keel/checkpoint
-```
-
-Useful inspection commands are:
+Useful inspection:
 
 ```bash
 git diff refs/keel/checkpoint
 git diff --stat refs/keel/checkpoint
 ```
 
-A file can be restored selectively with the normal git mechanisms. KEEL does not automatically destroy the user's working tree to create the checkpoint.
-
-This is a safety net, not a replacement for commits.
+The checkpoint is a safety net, not a replacement for normal commits.
 
 ---
 
-## 16. Why state lives on disk
+## 19. Failure and retry model
 
-Conversation history is a poor database for engineering state.
-
-It can be:
-
-- compacted;
-- cleared;
-- truncated;
-- transferred to another session;
-- polluted by unrelated discussion;
-- inaccessible to a different agent.
-
-KEEL therefore writes durable state into project documents. The harness can derive the current phase from those files on a later turn.
-
-This also makes the process auditable. A human can inspect the contract, plan, review, decisions, and evidence without replaying the entire model conversation.
-
----
-
-## 17. Verification architecture
-
-`verify.sh` and `verify.ps1` intentionally do not ask an LLM whether KEEL is installed correctly.
-
-They inspect the actual filesystem and validate structural invariants such as:
-
-- expected files exist;
-- agent frontmatter is present;
-- skill references resolve;
-- critical configuration values are present;
-- the extension is installed;
-- required guards and markers exist;
-- the installation layout matches what omp expects.
-
-This creates a useful separation:
+KEEL deliberately distinguishes:
 
 ```text
-install
-  |
-  v
-static verifier  ----> "is the harness installed?"
-  |
-  v
-runtime           ----> "does the workflow enforce itself?"
-  |
-  v
-smoke evaluation  ----> "does the chosen model/provider behave correctly?"
+blocked
+  ≠ failed
+  ≠ unverified
+  ≠ passed
 ```
 
-A static verifier cannot prove model behavior. A model smoke test cannot prove that the file layout is correct. Both are necessary.
+If the same mechanical wall is hit repeatedly, the orchestrator is instructed to stop spinning and ask the user what is needed. Review/implementation loops are bounded. Acceptance pushback is also bounded.
+
+The extension is designed to fail open if its own hook code throws unexpectedly. That avoids freezing the coding environment because of a harness bug, but it makes deterministic verification and negative runtime tests important: a silently broken guard must be caught during development.
 
 ---
 
-## 18. Extending KEEL safely
+## 20. Extending KEEL safely
 
-When adding a new guard, use this sequence.
+When adding a new guard:
 
-### 1. Define the invariant
+1. define the invariant as something observable and falsifiable;
+2. identify every bypass surface (`edit`, `write`, `ast_edit`, shell, LSP, MCP, other agents);
+3. decide which part belongs in instructions/skills and which part must be mechanical;
+4. implement the narrowest safe predicate;
+5. add a negative test for the forbidden path;
+6. add an allowed-path test so the guard does not become a blanket denial;
+7. update the manifest and technical documentation.
 
-Write the rule as a statement that can be observed or falsified.
+A useful invariant is:
 
-Bad:
+> "A coder mutation whose target is outside SCOPE is blocked."
+
+A weak invariant is:
 
 > "The coder should be careful."
 
-Good:
+---
 
-> "A coder mutation whose target is outside `SCOPE` is blocked."
+## 21. Practical debugging checklist
 
-### 2. Identify the bypass surface
+When a workflow behaves unexpectedly:
 
-If you protect `write`, ask whether the same mutation can happen through:
+```text
+1. What phase does docs/report.md say we are in?
+2. Does docs/contract.md exist and contain a resolved Type?
+3. Does docs/plan.md contain the expected SCOPE?
+4. Has the current plan passed reviewer Gate #1?
+5. Has the user approval gate passed?
+6. Which exact agent was spawned?
+7. Was the task call batched?
+8. Which tool produced the unexpected mutation?
+9. Was it a built-in tool, shell command, LSP mutation, or MCP action?
+10. Which guard should have seen it?
+11. Did the hook return an error or fail open?
+12. Does verify.sh/verify.ps1 still pass?
+13. Is the behavior actually owned by omp rather than KEEL?
+```
 
-- `edit`;
-- `ast_edit`;
-- `bash`;
-- `eval`;
-- LSP mutation;
-- MCP;
-- another agent.
-
-A guard is only useful if the alternate path is either protected or deliberately allowed.
-
-### 3. Keep user interaction minimal
-
-The plan gate is the intentional human decision point. Most other guards should push back on the model, not interrupt the user.
-
-### 4. Make state explicit
-
-If a rule depends on previous work, prefer a file, structured result, or runtime state with a clear lifetime over a string hidden in conversation history.
-
-### 5. Add a negative test
-
-Do not only prove that the intended path works. Prove that the forbidden path is blocked.
-
-### 6. Update the manifest
-
-`MANIFEST.md` is the inventory. This architecture document explains why the pieces exist; the manifest should tell you exactly what exists and where.
+For runtime debugging, inspect `omp stats`, session JSONL, and `~/.omp/logs/` as described in `USAGE.md`.
 
 ---
 
-## 19. Failure modes worth preserving
+## 22. Relationship to omp
 
-Some behavior that looks conservative is deliberate.
-
-### Fail-open extension errors
-
-The extension is designed not to freeze a session if its own hook code encounters an unexpected error. This avoids turning a bug in the harness into a deadlocked coding environment.
-
-That trade-off means the verifier and tests are especially important: a broken guard must be detected during development rather than silently trusted at runtime.
-
-### No automatic scope expansion
-
-If implementation discovers that the plan was incomplete, KEEL should re-plan rather than silently widen scope. This protects the meaning of the user's approval.
-
-### No fake completion
-
-A missing verification result is different from a failed verification result, and both are different from a passing result. The acceptance state must preserve that distinction.
-
-### No recursive writers
-
-The topology is intentionally restrictive. More autonomous agents do not automatically mean a better engineering system; uncontrolled writers make ownership and scope much harder to reason about.
-
----
-
-## 20. Source of truth when documentation and code disagree
-
-For implementation details, the source wins.
-
-Recommended order when investigating a discrepancy:
-
-1. `agent/extensions/keel.ts` for mechanical enforcement;
-2. the relevant agent frontmatter and prompt under `agent/agents/`;
-3. `agent/RULES.md` / `APPEND_SYSTEM.md` / `AGENTS.md` for intended behavior;
-4. `verify.sh` / `verify.ps1` for installation invariants;
-5. `MANIFEST.md` for the inventory;
-6. this document for the architectural explanation;
-7. `README.md` for the public product-level description.
-
-If a change in omp invalidates an assumption, update the implementation and verification first, then update the documentation.
-
----
-
-## 21. Relationship to omp
-
-KEEL intentionally tracks omp behavior instead of cloning the runtime.
-
-When debugging a KEEL issue, first ask which layer owns the behavior:
+When debugging KEEL, first ask which layer owns the behavior:
 
 | Symptom | First place to inspect |
 |---|---|
@@ -716,31 +753,25 @@ This boundary is a feature. KEEL should not become an alternative implementation
 
 ---
 
-## 22. Practical debugging checklist
+## 23. Source of truth
 
-When a workflow behaves unexpectedly:
+For implementation details, use this order:
 
-```text
-1. What phase does docs/report.md say we are in?
-2. Does docs/contract.md exist and contain a resolved Type?
-3. Does docs/plan.md contain the expected SCOPE?
-4. Which exact agent was spawned?
-5. Was the task call batched?
-6. Which tool produced the unexpected mutation?
-7. Was it a built-in tool, shell command, LSP mutation, or MCP action?
-8. Which guard should have seen it?
-9. Did the hook return an error or fail open?
-10. Does verify.sh/verify.ps1 still pass?
-11. Is the behavior actually owned by omp rather than KEEL?
-```
+1. actual omp runtime/API behavior;
+2. `agent/extensions/keel.ts` for mechanical enforcement;
+3. agent frontmatter and instruction files;
+4. `verify.sh` / `verify.ps1`;
+5. `tests/doc-conformance.sh` when the claim depends on upstream omp behavior;
+6. `MANIFEST.md`;
+7. prose documentation.
 
-For runtime debugging, inspect the session JSONL and omp logs as described in `USAGE.md`.
+If a change in omp invalidates an assumption, update implementation and verification first, then update this document.
 
 ---
 
-## 23. The mental model
+## 24. Mental model
 
-The shortest accurate description of the implementation is:
+The shortest accurate description is:
 
 ```text
 omp gives KEEL the ability to:
@@ -760,7 +791,5 @@ KEEL decides:
     when a stage may transition
     when the system must stop
 ```
-
-That separation is the core architecture.
 
 KEEL does not attempt to make a model infallible. It attempts to make **important engineering transitions explicit, durable, observable, and mechanically constrained**.
