@@ -80,6 +80,8 @@ Gate #1 and Gate #2 are different checks:
 
 The reviewer is not a second coder. It has no edit/write/bash tools and returns a structured verdict. The extension relays its `next_prompt` to the coder verbatim when another implementation pass is required. fileciteturn39file0L2-L2
 
+The reviewer also does **not** drive the browser MCP. UI live verification is performed by the contract-bound implementation path when `visual-tooling` is injected; the shipped `mcp.json` specifically configures the browser MCP for the coder. The reviewer remains a code/plan gatekeeper and may request a browser run through `needs` when it cannot perform that action itself.
+
 ---
 
 ## 4. Human gates
@@ -147,7 +149,7 @@ Depending on the project, acceptance may use:
 
 - a real HTTP endpoint;
 - a running application;
-- browser/MCP interaction;
+- browser/MCP interaction through the contract-bound implementation path;
 - database state;
 - a CLI command;
 - an integration path;
@@ -187,9 +189,9 @@ If the requirement changes, return to planning and change the contract/plan thro
 | Designer | Read-only UI/UX exploration | No |
 | Scout | Cheap read-only repository reconnaissance | No |
 
-The runtime topology is constrained. The primary session can create role agents; role agents may use the read-only scout where permitted. KEEL does not allow an unrestricted recursive tree of agents or multiple concurrent writers for the same task. 
+The runtime topology is constrained. The primary session can create role agents; role agents may use the read-only scout where permitted. KEEL does not allow an unrestricted recursive tree of agents or multiple concurrent writers for the same task.
 
-One important nuance: the reviewer is read-only with respect to project code, but it may use browser/MCP interaction for UI verification when the task requires it. Planner, designer, and scout are the strictly read-only roles enforced by KEEL's runtime guard.
+One important nuance: the reviewer is read-only with respect to project code, but it **does not have browser/MCP tools in its declared tool set**. UI live verification is handled by the contract-bound implementation path, where `visual-tooling` and the configured browser MCP can be used. Planner, designer, and scout are the strictly read-only roles enforced by KEEL's runtime guard.
 
 ---
 
