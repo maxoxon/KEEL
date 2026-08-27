@@ -1,130 +1,410 @@
-# KEEL on omp
+<div align="center">
 
-Один оркестратор, с которым ты общаешься по-русски. Он превращает твои размытые слова в полный
-бриф, сам выбирает пайплайн, останавливается на твоё одобрение только в осмысленных точках, и гонит
-имплементацию столько кругов, сколько нужно, пока фича не будет **реально** готова - с реальными
-данными, подключённым бэком, живой проверкой, а не «на словах».
+# KEEL
 
-## Как этим пользоваться
+### An engineering harness for AI coding agents
 
-**`USAGE.md`** - инструкция для тебя: как давать задачу, где остановят, что делать. Начни с неё.
+**Turn vague requests into planned, scoped, reviewed, and verified changes.**
 
-## Как ставить
+KEEL is an opinionated layer on top of [omp](https://omp.sh/) that adds an engineering workflow around an AI coding agent: contracts, planning, scope control, independent review, live verification, checkpoints, and enforced handoffs.
 
-Открой `INSTALL.md` - там пошагово. Ставится **руками в терминале**, не через omp: копирование
-файлов не требует модели, а на таких задачах модель зацикливается. `install.sh` / `install.ps1` -
-механическая часть (копирование, существующие файлы не перезатирает).
+[![Requires omp](https://img.shields.io/badge/requires-omp-111827?style=flat-square)](https://omp.sh/)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-**Потом обязательно `./verify.sh`** (или `verify.ps1`) - независимая проверка **без участия модели**:
-читает установленные файлы и печатает pass/fail. Установщик мог отрапортовать «готово», а по факту
-что-то не доделать - верификатор это покажет.
+**[Quick Start](#quick-start)** · **[How It Works](#how-it-works)** · **[Architecture](#architecture)** · **[Documentation](#documentation)**
 
-## Три слоя инструкций (ключевая идея - у каждого своя досягаемость)
+</div>
 
-omp доставляет инструкции тремя механизмами, и каждый долетает до разных сессий. KEEL раскладывает
-их строго по досягаемости, чтобы ограничения попадали туда, куда нужно:
+---
 
-| Файл | Куда долетает | Что внутри |
-|---|---|---|
-| `AGENTS.md` | **только оркестратор** (omp фильтрует его из субагентов) | базовая персона оркестратора |
-| `APPEND_SYSTEM.md` | **только оркестратор** (не пробрасывается субагентам) | вся механика харнесса: пайплайн, фазы, гейты, скилы |
-| `RULES.md` | **каждая** сессия, включая субагентов (sticky always-apply) | жёсткие сквозные инварианты |
-| `agents/<имя>.md` | только этот агент | его база + дисциплина (он не видит AGENTS/APPEND) |
+## The problem
 
-Поэтому каждый агент **самодостаточен**: субагент получает только своё тело + RULES.md, и в теле у
-него прописано всё, что нужно, чтобы жить по харнессу, не полагаясь на то, что до него не долетает.
+AI coding agents are very good at writing code. The hard part is everything around the code:
 
-## Кто есть кто
+- What exactly are we building?
+- What is in scope — and what is not?
+- Has the plan actually been reviewed?
+- Did the agent change more than it was supposed to?
+- Is the feature really working, or does the code merely look finished?
+- What happens when context is compacted, restarted, or handed to another agent?
 
-Модели ты задаёшь сам под свои креды (роли в `config.yml`). Профили ролей:
+Most of these problems are handled with prompts and good intentions.
 
-| Агент | Роль в конфиге | Что делает | Пишет код? |
-|---|---|---|---|
-| orchestrator | `default` (быстрая) | **primary-сессия**; бриф, прожарка, полоса, STOP-поинты, релей | нет, только 4 control-файла |
-| planner | `plan` (сильная, strict-схема) | план + контракт готовности + блок SCOPE | нет, физически |
-| reviewer | `slow` (сильная, strict-схема) | read-only гейт: план (#1) и результат (#2) | нет, физически |
-| coder | (строгосхемная) | единственный, кто пишет код; сам себя проверяет | **да** |
-| designer | `designer` | концепты UI | нет |
-| scout | `smol` (дешёвая) | дешёвый поиск фактов в коде (file:line) | нет |
+**KEEL handles them with a workflow and runtime enforcement.**
 
-Картинки: если модель агента сама принимает изображения, она видит их напрямую. Если нет - у
-кодера, ревьюера и дизайнера есть тул `inspect_image`, который прогоняет картинку через модель
-роли `vision` и возвращает текстовое описание. Он не «включается сам»: агент вызывает его явно,
-и omp активирует его ровно тогда, когда активная модель картинки не читает. **Кодер и ревьюер - строгосхемная модель** (не та, что роняет
-JSON-схемы через OpenRouter): их done-отчёт и вердикт ходят строгой схемой.
+---
 
-## Механика (не промпты - код и конфиг)
+## What KEEL does
 
-- **Никакого пестеринга** - `approvalMode: yolo`, per-tool промптов нет. STOP-поинты - либо
-  разговорные (оркестратор ждёт тебя), либо жёсткий confirm перед стартом кодера.
-- **Ревьюер/планировщик физически read-only** - в их `tools:` нет edit/write/bash. Это и есть
-  механизм (omp: агент read-only, если все его тулзы в read-множестве). Никакого мифического
-  `restrictToolNames` в агент-файле - его в omp нет; read-only держится списком тулз.
-- **lsp только на чтение** - у lsp есть write-действия (rename/code-actions), keel блокирует их
-  (GUARD 11); навигация (definition/references/hover/diagnostics) остаётся. Любые правки - через
-  кодера с edit/write.
-- **Модель на агента** - frontmatter агента (`model:` / `@role`).
-- **«Не объявляй готово»** - `output:`-схема кодера требует полей contract_met/evidence/
-  did_not_verify/remaining; связку «did_not_verify пуст ⇒ contract_met» держат ревьюер + нативные
-  проверки.
-- **Кода мимо плана нет** - кодер не спавнится, пока ты не апрувнул план; оркестратор пишет только
-  4 control-файла (хук блокирует всё остальное, включая запись через shell-редирект).
-- **Память автоматическая** - нативная mnemopi (локально), сама решает, что запоминать.
+KEEL turns an AI coding session into a controlled engineering pipeline:
 
-## Скилы - дисциплина, которую нельзя забыть
+```text
+     YOUR REQUEST
+          │
+          ▼
+   ┌──────────────┐
+   │   CONTRACT   │  What must be true when we're done
+   └──────┬───────┘
+          ▼
+   ┌──────────────┐
+   │     PLAN     │  What will change and where
+   └──────┬───────┘
+          ▼
+   ┌──────────────┐
+   │   APPROVAL   │  You approve the actual plan
+   └──────┬───────┘
+          ▼
+   ┌──────────────┐
+   │     CODE     │  The coder works inside the scope
+   └──────┬───────┘
+          ▼
+   ┌──────────────┐
+   │    REVIEW    │  A separate agent checks the result
+   └──────┬───────┘
+          ▼
+   ┌──────────────┐
+   │   VERIFY     │  Acceptance is checked against reality
+   └──────┬───────┘
+          ▼
+         DONE
+```
 
-У каждого субагента своя дисциплина, и omp вливает её **до первого промпта**, а не по желанию
-модели: кодер получает `karpathy`, `surgical-coding`, `ponytail` и `worktree-freshness`;
-планировщик - `decision-guard` и `ponytail`; ревьюер добавляет `agent-brief` (он сам пишет бриф
-кодеру); скаут - `worktree-freshness`. Когда в контракте заполнен блок Frontend, расширение
-дополнительно указывает кодеру и ревьюеру на `visual-tooling` - процедуру проверки UI через
-браузер, где доказательством считается вывод инструмента, а не чтение исходников.
+The implementation loop can run through multiple coder/reviewer iterations. You only get pulled back in when a meaningful decision, approval, or real blocker requires you.
 
-Оркестратору скилы влить нельзя (он primary-сессия, а не агент), поэтому карта документов и
-политика их ведения лежат прямо в `APPEND_SYSTEM.md`.
+> **KEEL is not another coding agent. It is the engineering system around one.**
 
-## Коробка передач
+---
 
-Ни одна передача не переключается сама. Кодер физически не стартует, пока ты не подтвердил план
-(confirm в расширении, не дисциплина промпта). Периферия (чтение, запись в `docs/`, поиск, команды
-по плану) - полный автомат, без вопросов. Ты - единственный, кто дёргает рычаг между процессами
-(прожарка -> план -> апрув -> код -> результат). Внутри имплементации цикл кодер<->ревьюер идёт сам,
-ограниченный потолком итераций, и выходит к тебе только на осмысленных точках или на настоящем
-блокере. Харнесс долбит модели, а не тебя.
+## Built on omp
 
-## Зона ответственности - принуждается, а не на усмотрение
+KEEL **requires [omp](https://omp.sh/)**. It is not a fork of omp and does not replace it.
 
-Каждый агент знает свою полосу (тело агента) И физически ограничен ею (omp не выдаёт кроссполосные
-тулзы) И keel ловит остаточные векторы. Заход в чужую зону -> блок -> делегирование:
-- оркестратор пишет код -> GUARD 2 блок -> спавнит кодера;
-- ревьюер/планировщик пишут -> нет edit/write/bash + GUARD 11 (lsp) + scope-lock;
-- кодер лезет за scope -> GUARD 7 (fail-closed без scope);
-- любой спавнит не scout -> GUARD 9 + нативный фильтр ростера omp.
+[omp](https://omp.sh/) provides the underlying coding-agent runtime: models, tools, subagents, LSP, memory, MCP, sessions, extensions, and the terminal UI.
 
-## Что нативное в omp, что наше
+KEEL adds the engineering layer on top:
 
-Инфраструктура - нативная: роли моделей, субагенты (`task`), read-only (список `tools:`), гейты
-(`ui.confirm`/`tools.approval`), кросс-файл (LSP), runtime (тесты/DAP), память (mnemopi), MCP,
-vision (`inspect_image`). Наш тонкий слой поверх: три слоя инструкций, дисциплины в телах агентов,
-always-правила и один хук (`keel.ts`). Не изобретаем колесо - улучшаем его.
+```text
+┌──────────────────────────────────────────┐
+│                  KEEL                    │
+│                                          │
+│ Contract · Plan · Scope · Review         │
+│ Verification · Checkpoints · Guards      │
+│ Agent roles · Workflow · Handoffs        │
+└────────────────────┬─────────────────────┘
+                     │
+                     ▼
+┌──────────────────────────────────────────┐
+│                   omp                    │
+│                                          │
+│ Models · Tools · Subagents · LSP         │
+│ MCP · Memory · Sessions · Extensions    │
+└──────────────────────────────────────────┘
+```
 
-## Честный предел
+### Why not build another agent?
 
-Система гарантирует, что выполнено **ровно то, что в контракте, и по-настоящему**. Требование,
-которое ты не назвал и которого нет в контракте, не поймает ни одна система - против этого прожарка
-и твоё подтверждение контракта. Всё названное - проверяется вживую.
+Because omp already provides the primitives KEEL needs. KEEL deliberately stays thin: it configures those primitives, adds its own instruction layers and agents, and uses a runtime extension to enforce rules that should not be left to a model's memory.
 
-## Откат, если что-то сломали
-Перед первой правкой в сессии расширение снимает точку возврата (не трогая рабочее дерево):
-- посмотреть ущерб: `git diff refs/keel/checkpoint`
-- вернуть файл: `git checkout refs/keel/checkpoint -- <путь>`
+**Upstream:** [omp.sh](https://omp.sh/) · [omp on GitHub](https://github.com/YanwuZeng/omp)
 
-## Дашборд и живой обзор
-- `omp stats` - дашборд: стоимость, токены, cache rate, расход по моделям.
-- **Agent Hub** - клавиша **Alt+A** внутри omp: живая доска субагентов, их транскрипты, управление
-  (steer / revive / kill).
-- Сессии - JSONL в `~/.omp/agent/sessions/` (полный replay), логи - `~/.omp/logs/`.
+---
 
-## Красивый вид на Windows
-Если в терминале «крючки» - он не в UTF-8. Разово: `chcp 65001` (cmd) или Windows Terminal.
-Нативный установщик - `install.ps1` (PowerShell), чистый ASCII.
+## Why KEEL is different
+
+### A contract comes before implementation
+
+The task becomes an explicit acceptance contract before the coder starts. Ambiguity is surfaced early instead of being silently converted into code.
+
+### The plan is a real gate
+
+The coder does not start just because the model thinks the plan is good enough. The plan reaches an explicit approval point.
+
+### Scope is enforced
+
+The approved plan defines the mutation scope. KEEL blocks changes outside that scope instead of merely asking the model not to make them.
+
+### Roles are separated
+
+The planner plans. The coder implements. The reviewer reviews. The orchestrator coordinates. A read-only scout gathers facts. Keeping responsibilities separate makes it harder for one model to talk itself into believing its own work is correct.
+
+### "Done" requires evidence
+
+The coder reports what was verified and what was not. The reviewer independently evaluates the result. Acceptance is tied to the contract rather than to the model saying "looks good".
+
+### Verification can reach the real system
+
+For UI work, KEEL can use browser-based tooling and require evidence from the running application instead of treating source code as proof that the UI works.
+
+### The workflow survives context loss
+
+Important state lives in project control documents and the harness, not only in one model's conversation history. Restarting or compacting a session does not have to erase the engineering process.
+
+### Enforcement lives below the prompt layer
+
+KEEL uses runtime guards for scope, write ownership, control-file protection, LSP write actions, agent topology, and incomplete acceptance.
+
+---
+
+## How It Works
+
+KEEL adds a small set of cooperating roles around the primary omp session:
+
+| Role | Responsibility | Writes project code? |
+|---|---|---:|
+| **Orchestrator** | Understands the request, coordinates the workflow, owns control documents | No |
+| **Planner** | Produces the implementation plan and acceptance contract | No |
+| **Coder** | Implements the approved work | **Yes** |
+| **Reviewer** | Independently reviews the plan/result and sends the next required action | No |
+| **Designer** | Produces UI/UX concepts when needed | No |
+| **Scout** | Cheap, read-only codebase reconnaissance | No |
+
+The roles use omp's native subagent and tool mechanisms. KEEL adds its own rules, skills, and runtime extension to enforce the boundaries between them.
+
+---
+
+## Architecture
+
+The important distinction is simple:
+
+```text
+                 USER
+                   │
+                   ▼
+            ┌─────────────┐
+            │ ORCHESTRATOR│
+            └──────┬──────┘
+                   │
+          ┌────────┼────────┐
+          ▼        ▼        ▼
+       PLANNER   SCOUT   DESIGNER
+          │
+          ▼
+       APPROVAL
+          │
+          ▼
+        CODER ◄──────────────┐
+          │                  │
+          ▼                  │
+       REVIEWER ─────────────┘
+          │
+          ▼
+       VERIFIED
+```
+
+The primary session owns the control documents. The coder is the only role intended to write project code. Read-only roles are constrained by omp's tool model and KEEL's guards.
+
+---
+
+## Enforcement, not just prompts
+
+A central design principle of KEEL is:
+
+> **If a rule matters, do not rely on the model remembering it.**
+
+The harness includes guards for things such as:
+
+- plan approval before coding;
+- primary-session code fencing;
+- pre-change checkpoints;
+- mandatory contracts before implementation/review;
+- scope locking;
+- read-only agent enforcement;
+- controlled agent-spawn topology;
+- single-writer sequencing;
+- protection of KEEL control files from subagents;
+- blocking LSP mutation actions outside the coder;
+- review-to-coder handoff without paraphrasing;
+- acceptance checks before a task can be considered complete.
+
+These mechanisms complement omp's native permissions and tool boundaries. They are not intended to replace them.
+
+---
+
+## Quick Start
+
+### 1. Clone KEEL
+
+```bash
+git clone https://github.com/maxoxon/KEEL.git
+cd KEEL
+```
+
+### 2. Run the installer
+
+macOS / Linux / Git Bash:
+
+```bash
+./install.sh
+```
+
+Windows PowerShell:
+
+```powershell
+./install.ps1
+```
+
+**The installer checks for `omp`. If it is not installed, it installs the official omp distribution first.** KEEL is then installed into omp's agent configuration directory.
+
+If you already have omp installed, the installer leaves it alone.
+
+### 3. Configure models
+
+Open:
+
+```text
+~/.omp/agent/config.yml
+```
+
+Replace the `KEEL_SETUP_REQUIRED` placeholders with the model IDs you want for each role.
+
+The coder model is configured separately in:
+
+```text
+~/.omp/agent/agents/coder.md
+```
+
+The coder and reviewer should use models that reliably support the strict structured-output schemas required by KEEL.
+
+### 4. Verify the installation
+
+```bash
+./verify.sh
+```
+
+Windows:
+
+```powershell
+./verify.ps1
+```
+
+The verification scripts inspect the installed files directly and do not require an LLM. A successful installation should report **0 failed** checks.
+
+### 5. Start omp
+
+```bash
+omp
+```
+
+Then give the orchestrator a task in natural language.
+
+For the full workflow, see **[USAGE.md](USAGE.md)**.
+
+---
+
+## Installation model
+
+KEEL installs as an **omp configuration layer**, not as a separate binary.
+
+The installer places files under:
+
+```text
+~/.omp/agent/
+├── AGENTS.md
+├── APPEND_SYSTEM.md
+├── RULES.md
+├── config.yml
+├── models.yml
+├── mcp.json
+├── extensions/
+│   └── keel.ts
+├── agents/
+│   ├── planner.md
+│   ├── reviewer.md
+│   ├── coder.md
+│   ├── designer.md
+│   └── scout.md
+└── skills/
+    └── ...
+```
+
+Existing files are not silently overwritten. If you already customized omp, the installer tells you which files need to be merged manually.
+
+For detailed installation and configuration, see **[INSTALL.md](INSTALL.md)**.
+
+---
+
+## The four-stage mental model
+
+You do not need to understand every internal file to use KEEL.
+
+### 1. Understand
+
+What exactly do you want? What constraints matter? What does success look like?
+
+### 2. Plan
+
+Where should the change happen? What is explicitly out of scope? How will it be verified?
+
+### 3. Execute
+
+The coder implements only the approved work. Review and implementation can iterate without constantly interrupting you.
+
+### 4. Prove
+
+The result is checked against the contract. For UI and integration work, verification can use the real running system.
+
+---
+
+## What KEEL does not promise
+
+KEEL cannot verify requirements that were never defined.
+
+If the contract says "add a button" but never says what the button should do, no harness can magically know the missing requirement.
+
+KEEL therefore focuses on making **explicit requirements hard to lose and hard to ignore**. The quality of the initial requirement still matters.
+
+---
+
+## When KEEL is useful
+
+KEEL is most useful when an AI agent is doing work that you care about getting **correct**, not merely generated:
+
+- multi-file features;
+- UI changes that need real browser verification;
+- bug fixes where the root cause matters;
+- refactors where behavior must remain unchanged;
+- architecture changes;
+- tasks where scope creep is expensive;
+- long-running sessions with multiple agents;
+- anyone who wants a repeatable engineering process around AI coding.
+
+For a trivial one-line change, KEEL may be more process than you need. That's intentional.
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| **[USAGE.md](USAGE.md)** | Day-to-day workflow and how to give KEEL tasks |
+| **[INSTALL.md](INSTALL.md)** | Installation, model configuration, verification, and troubleshooting |
+| **[MANIFEST.md](MANIFEST.md)** | Detailed inventory of agents, skills, instructions, configuration, and guards |
+| **`agent/`** | The actual KEEL harness files installed into omp |
+
+If you are new to KEEL:
+
+**README → Quick Start → [USAGE.md](USAGE.md) → [INSTALL.md](INSTALL.md) → [MANIFEST.md](MANIFEST.md)**
+
+---
+
+## Relationship to omp
+
+KEEL is intentionally dependent on omp's runtime and APIs. It can therefore be affected by changes in omp's agent model, configuration schema, tool permissions, extension API, and subagent behavior.
+
+When something appears to be an omp capability rather than a KEEL rule, check the upstream project first:
+
+**[omp — official project](https://omp.sh/)**
+
+KEEL does not try to duplicate omp's documentation. This repository documents the engineering layer KEEL adds on top.
+
+---
+
+## License
+
+KEEL is released under the [MIT License](LICENSE).
+
+<div align="center">
+
+**KEEL — make the agent follow the engineering process, not just the prompt.**
+
+</div>
