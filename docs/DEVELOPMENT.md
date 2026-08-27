@@ -2,8 +2,7 @@
 
 This document is for people who want to modify KEEL itself.
 
-If you only want to use KEEL, start with the [README](../README.md) and [USAGE.md](../USAGE.md).
-If you want to understand the architecture, read [ARCHITECTURE.md](ARCHITECTURE.md) first.
+If you only want to use KEEL, start with the [README](../README.md) and [USAGE.md](USAGE.md). If you want to install it, read [INSTALL.md](INSTALL.md). If you want to understand the architecture, read [ARCHITECTURE.md](ARCHITECTURE.md) first. The current implementation inventory is [MANIFEST.md](MANIFEST.md).
 
 ---
 
@@ -11,53 +10,34 @@ If you want to understand the architecture, read [ARCHITECTURE.md](ARCHITECTURE.
 
 KEEL is an engineering harness **on top of omp**. Do not turn it into a second coding-agent runtime.
 
-The upstream runtime owns:
+The upstream runtime owns model invocation, built-in tools, subagent execution, sessions, context management, LSP, MCP, memory, configuration merging, and terminal UI.
 
-- model invocation;
-- built-in tools;
-- subagent execution;
-- sessions and context management;
-- LSP integration;
-- MCP integration;
-- memory;
-- configuration merging;
-- terminal UI.
+KEEL owns the engineering protocol around those primitives: task contracts, planning and approval, mutation scope, role separation, review handoff, acceptance state, checkpoints, and workflow-specific runtime guards.
 
-KEEL owns the engineering protocol around those primitives:
-
-- task contracts;
-- planning and approval;
-- mutation scope;
-- role separation;
-- review handoff;
-- acceptance state;
-- checkpoints;
-- workflow-specific runtime guards.
-
-When a proposed change can be implemented by using an existing omp primitive rather than adding a KEEL mechanism, prefer the omp primitive.
+When a proposed change can be implemented with an existing omp primitive rather than a new KEEL mechanism, prefer the omp primitive.
 
 ---
 
 ## 2. Source of truth
 
-When documentation and implementation disagree, use this order of authority:
+When documentation and implementation disagree, use this order:
 
-1. the running omp behavior and its documented API;
+1. actual omp runtime/API behavior;
 2. `agent/extensions/keel.ts` for mechanical enforcement;
-3. the agent frontmatter and instruction files under `agent/`;
-4. verification scripts;
+3. agent frontmatter and instruction files under `agent/`;
+4. `verify.sh` / `verify.ps1`;
 5. `MANIFEST.md`;
 6. prose documentation.
 
-`MANIFEST.md` is an inventory, not executable policy. It should describe the repository accurately, but a stale manifest must not be treated as a feature specification.
+The manifest is an inventory, not executable policy.
 
 ---
 
 ## 3. Control documents are state
 
-The workflow deliberately stores important task state on disk rather than only in model context.
+Important task state lives on disk rather than only in model context.
 
-Typical state is represented by:
+Typical state:
 
 ```text
 project/
@@ -69,21 +49,11 @@ project/
     └── PHASE_REPORT_<slug>.md
 ```
 
-These files are not ordinary project documentation while a KEEL task is active. They are part of the harness state machine.
-
-### Ownership
-
-The primary/orchestrator owns the canonical control files.
-
-The coder must not rewrite the contract, plan/SCOPE, task registry, or review verdict. A subagent that can rewrite the document controlling its own scope can bypass the protocol.
-
-Subagents that need to report implementation details use their phase report instead.
+These files are part of the active harness state machine. The primary/orchestrator owns the canonical control files. Subagents must not rewrite the contract, plan/SCOPE, task registry, or review verdict. Implementation details belong in phase reports.
 
 ---
 
-## 4. The workflow state machine
-
-Do not introduce a new state unless the transition has a concrete enforcement reason.
+## 4. Workflow state machine
 
 The conceptual flow is:
 
@@ -118,7 +88,7 @@ acceptance
 verified / closed
 ```
 
-The exact phase displayed by the status line is derived from durable project state. Do not make the UI status authoritative by itself.
+The exact phase shown in the status UI is derived from durable project state. The UI is not itself the source of truth.
 
 ---
 
@@ -134,66 +104,37 @@ A plan answers:
 
 The plan contains the authoritative `SCOPE` block used by the runtime scope guard.
 
-### Never weaken the relationship
-
-Do not make the coder infer scope from prose if a machine-readable scope can be produced.
-
-Do not let the reviewer silently expand scope.
-
-If a requirement changes the scope, the workflow must return to planning rather than silently mutating the existing plan.
+Never make the coder infer scope from prose when a machine-readable scope can be produced. If a requirement changes the scope, return to planning instead of silently expanding the existing plan.
 
 ---
 
 ## 6. Mechanical guards
 
-The runtime extension is deliberately a guard layer, not a second orchestrator.
+The runtime extension is a guard layer, not a second orchestrator.
 
-When adding a guard, answer four questions first:
+When adding a guard, answer four questions:
 
-1. **What invariant is being protected?**
-2. **Why is a prompt insufficient?**
-3. **What exact tool/action is being intercepted?**
-4. **What is the safe behavior when the hook itself fails?**
+1. What invariant is protected?
+2. Why is a prompt insufficient?
+3. What exact tool/action is intercepted?
+4. What is the safe behavior when the hook itself fails?
 
-Prefer narrow predicates over broad heuristics.
+Prefer narrow predicates over broad heuristics. A guard should reject the smallest unsafe action rather than disable an entire capability.
 
-A guard should reject the smallest unsafe action rather than disable an entire capability.
+Important guard classes include plan approval, primary-session code fencing, checkpoint creation, contract completeness, scope locking, role/spawn topology, single-writer sequencing, read-only enforcement, control-file protection, LSP mutation blocking, review handoff integrity, and acceptance/session-stop enforcement.
 
-### Important guard classes
-
-- plan approval before implementation;
-- primary-session code fencing;
-- checkpoint creation;
-- contract completeness;
-- scope locking;
-- role/spawn topology;
-- single-writer sequencing;
-- read-only enforcement;
-- control-file protection;
-- LSP mutation blocking;
-- review handoff integrity;
-- acceptance/session-stop enforcement.
-
-### Fail-open vs fail-closed
-
-Do not choose this globally.
-
-For a hook implementation bug, freezing the entire coding session can be worse than allowing the operation and reporting the instrumentation failure. For a missing or unusable security boundary such as an absent scope in a state where scope is mandatory, blocking the mutation is appropriate.
-
-The correct policy belongs to the invariant being protected and should be documented with the guard.
+Do not choose fail-open or fail-closed globally. The correct behavior depends on the invariant. Missing mandatory scope, for example, should not silently become permission to mutate arbitrary files.
 
 ---
 
 ## 7. Tool classification
 
-omp may expose more tools than are obvious from an agent's frontmatter. Some tools are derived or added by the runtime.
+omp may expose more tools than are obvious from an agent's frontmatter. When changing read-only enforcement:
 
-When changing read-only enforcement:
-
-- inspect the actual omp tool classification;
-- do not assume the frontmatter is the complete runtime tool list;
-- remember that MCP tools are a separate boundary;
-- test direct mutation, shell mutation, LSP mutation, and MCP mutation separately where applicable.
+- inspect actual omp tool classification;
+- do not assume the Markdown allowlist is the complete runtime tool list;
+- remember that MCP tools form a separate boundary;
+- test direct mutation, shell mutation, LSP mutation, and MCP mutation where applicable.
 
 A read-only role is not safe merely because its Markdown says `read`.
 
@@ -214,11 +155,9 @@ primary/orchestrator
       └── scout
 ```
 
-The primary session controls role creation. A role may use the read-only scout where permitted, but the workflow must not become an unrestricted recursive agent tree.
+The primary session controls role creation. A role may use the read-only scout where permitted, but the workflow must not become an unrestricted recursive tree.
 
-The coder is the intended project-code writer.
-
-The planner and reviewer may inspect the repository and use read-only LSP operations, but their mutation paths are blocked.
+The coder is the intended project-code writer. Planner, reviewer, designer, and scout are constrained from project mutation by their role configuration and KEEL enforcement.
 
 ---
 
@@ -228,22 +167,17 @@ Planner, reviewer, and coder outputs are protocol messages, not merely prose.
 
 If a field is consumed mechanically, treat its schema as an API.
 
-In particular:
+Do not rename fields casually, parse model prose when a structured field exists, or let the orchestrator paraphrase a reviewer's required next action when verbatim relay is part of the protocol.
 
-- do not rename fields casually;
-- do not parse model prose when a structured field already exists;
-- do not let the orchestrator paraphrase a reviewer's required next action when verbatim relay is part of the protocol;
-- update all consumers and verification checks together when a schema genuinely changes.
-
-A model that produces valid-looking prose but invalid structured output has not completed the protocol step.
+When a schema changes, update the producer, every consumer, and deterministic verification coverage together.
 
 ---
 
 ## 10. Verification
 
-KEEL's strongest property is that acceptance is not identical to the coder saying `done`.
+Acceptance is not identical to the coder saying `done`.
 
-Verification should prefer evidence from the system being changed:
+Prefer evidence from the system being changed:
 
 ```text
 source change
@@ -255,30 +189,28 @@ compare with contract
 accept or return to coder
 ```
 
-For UI work, browser/MCP verification is preferred where the contract requires behavior visible in the running application.
+For UI work, browser/MCP verification is preferred where the contract requires behavior visible in the running application. For backend work, use the real endpoint, command, database state, integration path, or other observable behavior when practical.
 
-For backend work, use the real endpoint, command, database state, integration path, or other observable behavior when practical.
-
-Do not make a green self-authored test the only evidence if the acceptance contract describes a real-world behavior that the test does not exercise.
+A green self-authored test is useful evidence, but should not be the only evidence when the acceptance contract describes a real-world behavior the test does not exercise.
 
 ---
 
-## 11. Adding a new task type
+## 11. Adding a task type
 
-Task types are persisted in the contract because they affect mechanics, not just prompt wording.
+Task types are persisted in the contract because they affect mechanics.
 
 When adding one:
 
-1. define its semantics in the task-type documentation;
-2. define its required gate/effort behavior;
-3. define what evidence is required;
-4. implement the runtime behavior;
-5. inject the type-specific rules into every relevant role;
-6. add verification coverage;
-7. update `MANIFEST.md`;
-8. update `USAGE.md` only if the user-visible workflow changes.
+1. define its semantics;
+2. define gate/effort behavior;
+3. define required evidence;
+4. implement runtime behavior;
+5. inject type-specific rules into relevant roles;
+6. add deterministic verification coverage;
+7. update `docs/MANIFEST.md`;
+8. update `docs/USAGE.md` if user-visible behavior changes.
 
-Do not create a task type that merely changes the tone of a prompt. If it has no enforceable semantic difference, it probably belongs in a skill instead.
+A task type that only changes prompt tone probably belongs in a skill instead.
 
 ---
 
@@ -288,36 +220,19 @@ Use the lowest appropriate layer.
 
 ### Instruction
 
-Use when the rule is behavioral guidance and a model can safely choose how to follow it.
-
-Examples:
-
-- coding style;
-- reasoning heuristics;
-- how to structure a report.
+For behavioral guidance that a model can safely follow.
 
 ### Skill
 
-Use when a reusable procedure should be loaded into selected roles.
-
-Examples:
-
-- surgical coding;
-- visual QA;
-- decision discipline.
+For a reusable procedure loaded into selected roles.
 
 ### Runtime guard
 
-Use when violating the rule would invalidate the engineering protocol and the model must not be trusted to self-enforce it.
+For a rule that invalidates the engineering protocol if violated and therefore must not rely on model self-enforcement.
 
-Examples:
+Examples include scope lock, control-file ownership, LSP mutation blocking, and single-writer enforcement.
 
-- scope lock;
-- control-file ownership;
-- LSP mutation blocking;
-- single-writer enforcement.
-
-The mistake to avoid is putting every rule into `keel.ts`. That turns a small harness into an unmaintainable second runtime.
+Do not put every rule into `keel.ts`; that would turn KEEL into an unmaintainable second runtime.
 
 ---
 
@@ -325,47 +240,37 @@ The mistake to avoid is putting every rule into `keel.ts`. That turns a small ha
 
 KEEL's config contains both harness-critical settings and user-specific settings.
 
-Do not casually overwrite a user's existing `~/.omp/agent/config.yml`.
+Do not casually overwrite an existing `~/.omp/agent/config.yml`.
 
-The installer should:
+The installer should preserve existing files, make conflicts explicit, never touch credentials managed by omp, install KEEL's required files only when safe, and bootstrap the official omp installation only when omp is missing.
 
-- preserve existing files;
-- make conflicts explicit;
-- never touch credentials stored by omp;
-- install KEEL's required files only when safe;
-- bootstrap the official omp installation only when omp is missing.
-
-The installer is a bootstrapper, not a configuration merger engine.
-
-If a merge is required, tell the user exactly what must be merged.
+The installer is a bootstrapper, not a configuration-merger engine.
 
 ---
 
-## 14. Testing a change
-
-Before calling a change complete, test at the smallest level that can falsify the assumption.
+## 14. Testing changes
 
 ### Documentation-only change
 
 - verify links and paths;
-- compare statements with current files;
-- ensure no command or filename is invented.
+- compare commands and filenames with current files;
+- ensure no behavior is claimed that the source does not implement.
 
 ### Installer change
 
 - existing omp installation remains untouched;
 - missing omp is bootstrapped through the official installer;
 - failed omp installation stops before KEEL files are copied;
-- existing KEEL files are handled according to the original conflict behavior;
+- existing KEEL files retain their original conflict behavior;
 - both Unix and PowerShell paths are considered.
 
 ### Agent/config change
 
 - run `verify.sh` / `verify.ps1`;
-- ensure no placeholders remain unless deliberately expected;
+- ensure required placeholders are resolved;
 - verify every referenced skill exists;
 - verify every agent path exists;
-- inspect the resulting merged configuration where possible.
+- inspect the resulting configuration where possible.
 
 ### Guard change
 
@@ -376,19 +281,15 @@ allowed operation → passes
 forbidden operation → blocked
 ```
 
-Also test the bypass path that motivated the guard. For example, a file-write restriction is incomplete if `edit` is blocked but shell redirection still writes the file.
+Also test the bypass path that motivated the guard. Blocking `edit` while allowing shell redirection to write the same file is not a complete guard.
 
 ---
 
 ## 15. Verification scripts
 
-`verify.sh` and `verify.ps1` are intentionally LLM-free.
+`verify.sh` and `verify.ps1` are intentionally LLM-free. They inspect installed state directly.
 
-They should inspect the installed state directly. Do not make verification depend on an AI model being available; otherwise a broken harness can report success merely because the model did not complain.
-
-When adding a required artifact, add a deterministic verification check for it.
-
-A verification check should fail with a useful message that tells the maintainer what is missing and where it is expected.
+When adding a required artifact or invariant, add a deterministic verification check for it. A check should fail with a useful message identifying what is missing and where it is expected.
 
 ---
 
@@ -397,17 +298,17 @@ A verification check should fail with a useful message that tells the maintainer
 When KEEL appears inactive, debug from the outside inward:
 
 1. Is `omp` running the expected installation?
-2. Is the KEEL extension loaded?
-3. Are the three instruction layers present in the expected scope?
+2. Is the KEEL extension present in the configured agent directory?
+3. Are the instruction layers installed in the expected scope?
 4. Are the agent files visible to omp?
-5. Are the model roles configured?
-6. Does the task state exist under `docs/`?
+5. Are model roles configured?
+6. Does task state exist under the project's `docs/`?
 7. Did the relevant tool call reach the guard?
-8. Did the guard classify the operation as intended?
-9. Did the structured output validate?
-10. Did the status UI merely fail to display an otherwise working guard?
+8. Did the guard classify the operation correctly?
+9. Did structured output validate?
+10. Is the problem only the status presentation?
 
-Do not start by changing prompts. First establish whether the failure is in runtime loading, state, classification, enforcement, or presentation.
+Do not start by changing prompts. Establish whether the failure is runtime loading, state, classification, enforcement, or presentation.
 
 Useful artifacts include:
 
@@ -423,9 +324,9 @@ docs/review.md
 
 ---
 
-## 17. Safe evolution rules
+## 17. Safe evolution
 
-KEEL is a harness with a lot of interacting constraints. Prefer small, reversible changes.
+Prefer small, reversible changes.
 
 Before changing a guard or instruction:
 
@@ -434,15 +335,11 @@ Before changing a guard or instruction:
 3. identify every consumer of the state/field/tool classification;
 4. make the smallest change;
 5. run deterministic verification;
-6. test the intended blocked and allowed paths;
+6. test intended blocked and allowed paths;
 7. update technical documentation;
 8. update the manifest last.
 
-Do not rewrite the whole harness to solve a local problem.
-
-Do not add a new abstraction merely to make a one-off change look cleaner.
-
-Do not silently change a safety boundary because a model finds it inconvenient.
+Do not rewrite the whole harness to solve a local problem. Do not silently weaken a safety boundary because a model finds it inconvenient.
 
 ---
 
@@ -450,13 +347,11 @@ Do not silently change a safety boundary because a model finds it inconvenient.
 
 | Audience | Start here |
 |---|---|
-| New user | `README.md` |
+| New user | `../README.md` |
 | Daily user | `USAGE.md` |
 | Installation/troubleshooting | `INSTALL.md` |
-| Architecture reader | `docs/ARCHITECTURE.md` |
-| Maintainer / contributor | `docs/DEVELOPMENT.md` |
-| Exact inventory of current files and guards | `MANIFEST.md` |
-
-The documentation should preserve this separation:
+| Architecture reader | `ARCHITECTURE.md` |
+| Maintainer / contributor | `DEVELOPMENT.md` |
+| Exact current inventory | `MANIFEST.md` |
 
 **README sells the idea. USAGE teaches the workflow. INSTALL gets it running. ARCHITECTURE explains the system. DEVELOPMENT explains how to change it. MANIFEST records what currently exists.**
