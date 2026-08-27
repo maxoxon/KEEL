@@ -47,39 +47,38 @@ Incomplete requests are fine. Clarifying missing product decisions is part of th
 
 ## 3. The workflow
 
-At a high level:
+The normal implementation path is:
 
 ```text
 request
   ↓
 clarification / brief
   ↓
-contract + plan
+contract
+  ↓
+plan + SCOPE
+  ↓
+REVIEWER · Gate #1
   ↓
 user approval
   ↓
 implementation
   ↓
-review
+conditional REVIEWER · Gate #2
+  ├── revise → coder
+  └── pass
   ↓
 independent acceptance verification
   ↓
 closed
 ```
 
-The durable state lives on disk rather than only in the conversation. Typical task-state files are:
+Gate #1 and Gate #2 are different checks:
 
-```text
-project/docs/
-├── contract.md
-├── plan.md
-├── report.md
-├── review.md
-├── decisions.md
-└── PHASE_REPORT_<slug>.md
-```
+- **Gate #1 — pre-code review.** The reviewer checks the contract and plan before implementation. It checks completeness, dependencies/blast radius, scope, over-engineering, real-data acceptance criteria, and coherence between fields. It then writes the exact `next_prompt` for the coder. fileciteturn39file0L2-L2
+- **Gate #2 — conditional implementation review.** The reviewer does not re-review every coder pass. It is triggered when native checks fail twice, behavior cannot be auto-checked, the diff is large (roughly more than six files), or a sensitive area changed. When triggered, it reads the actual diff and audits it against the plan, evidence, verification state, and scope. fileciteturn39file0L2-L2
 
-This is what allows a compacted or restarted session to recover the task from project state instead of trusting conversational memory.
+The reviewer is not a second coder. It has no edit/write/bash tools and returns a structured verdict. The extension relays its `next_prompt` to the coder verbatim when another implementation pass is required. fileciteturn39file0L2-L2
 
 ---
 
@@ -87,23 +86,21 @@ This is what allows a compacted or restarted session to recover the task from pr
 
 KEEL keeps you out of the mechanical implementation loop while retaining control over consequential decisions.
 
-### Gate 1 — clarify the brief
+### Gate A — clarify the brief
 
 The orchestrator resolves requirements that only you can decide. Repository facts are investigated by the agents instead of becoming unnecessary questions.
 
-### Gate 2 — approve the plan and contract
+### Gate B — review and approve the plan
 
-The plan describes what will change, what is out of scope, and how acceptance will be demonstrated. The contract describes what must be true when the task is accepted.
+The reviewer first checks the plan and contract. After that review, KEEL asks for the explicit implementation approval immediately before the coder starts. The approval is a runtime gate, not a model instruction.
 
-The coder does not start until the required approval point is reached. Contract-bound agents also cannot start while unresolved placeholders such as `<...>` or `TBD` remain.
+The coder cannot start while the contract is missing, unresolved, the plan has no usable `SCOPE`, or the approval gate has not passed.
 
-**Review this gate carefully.** Once implementation starts, the approved scope is a runtime-enforced boundary.
-
-### Gate 3 — accept the result
+### Gate C — accept the result
 
 KEEL reports the implementation and evidence collected against the contract. Acceptance is not equivalent to the coder saying `done`.
 
-If acceptance is incomplete, the workflow can return to implementation rather than declaring the task complete.
+If acceptance is incomplete, the workflow returns to implementation rather than declaring the task complete.
 
 ---
 
@@ -112,17 +109,26 @@ If acceptance is incomplete, the workflow can return to implementation rather th
 The coder implements the approved work. It is not the final authority on whether the task is complete.
 
 ```text
+PLAN
+  │
+  ▼
+REVIEWER · Gate #1
+  │
+  ▼
+USER APPROVAL
+  │
+  ▼
 CODER
   │
   ├── implementation evidence
-  ↓
-REVIEWER
+  ▼
+[conditional REVIEWER · Gate #2]
   │
-  ├── accepted → verification
-  │
-  └── changes required → exact next action
-  ↓
-CODER
+  ├── revise → exact next action → CODER
+  └── pass
+          │
+          ▼
+INDEPENDENT ACCEPTANCE
 ```
 
 The reviewer produces structured output. When another implementation pass is required, KEEL relays the reviewer's next action without asking the orchestrator to paraphrase it.
@@ -157,8 +163,8 @@ A self-authored test is useful evidence, but it is not automatically equivalent 
 
 The approved plan contains a machine-readable `SCOPE` block. KEEL checks mutations against that scope, including relevant paths through:
 
-- `edit` / `write`;
-- shell-based writes;
+- `edit` / `write` / `ast_edit`;
+- shell-based writes through `bash` / `eval`;
 - LSP mutation actions;
 - identifiable MCP mutation targets.
 
@@ -177,15 +183,36 @@ If the requirement changes, return to planning and change the contract/plan thro
 | Orchestrator | Owns workflow and canonical control documents | No |
 | Planner | Repository analysis, plan, and contract | No |
 | Coder | Approved implementation | **Yes** |
-| Reviewer | Independent review and next-action decision | No |
+| Reviewer | Gate #1 on plan; conditional Gate #2 on implementation | No |
 | Designer | Read-only UI/UX exploration | No |
 | Scout | Cheap read-only repository reconnaissance | No |
 
-The runtime topology is constrained. The primary session can create role agents; role agents may use the read-only scout where permitted. KEEL does not allow an unrestricted recursive tree of agents or multiple concurrent writers for the same task.
+The runtime topology is constrained. The primary session can create role agents; role agents may use the read-only scout where permitted. KEEL does not allow an unrestricted recursive tree of agents or multiple concurrent writers for the same task. 
+
+One important nuance: the reviewer is read-only with respect to project code, but it may use browser/MCP interaction for UI verification when the task requires it. Planner, designer, and scout are the strictly read-only roles enforced by KEEL's runtime guard.
 
 ---
 
-## 9. Read-only work
+## 9. Task types
+
+The active task type is stored in `docs/contract.md` as `Тип:` and changes runtime mechanics rather than merely changing prompt wording.
+
+| Type | Current behavior |
+|---|---|
+| `bug-fix` | Root-cause debugging with the debugger; smallest safe fix |
+| `small-feature` | Smallest safe extension of existing behavior |
+| `large-feature` | Mandatory milestone decomposition and per-milestone verification |
+| `refactor` | Preserve behavior; verify before and after |
+| `architecture-change` | Explicit rationale, dependencies, rollback points, staged compatibility |
+| `new-project` | MVP-first, independently verifiable milestones |
+| `audit` | Read-only audit; coder is mechanically refused |
+| `adopt` | Describe an existing project from filesystem evidence without rewriting it |
+
+Task type also selects the per-spawn `effort` hint and injects type-specific rules into contract-bound agents. `audit` additionally disables the coder path. Large/architectural types require a real milestone ledger before coding.
+
+---
+
+## 10. Read-only work
 
 Not every request needs implementation.
 
@@ -202,7 +229,7 @@ Read-only reconnaissance and design work do not become implementation merely bec
 
 ---
 
-## 10. Working between tasks
+## 11. Working between tasks
 
 Task state belongs to project files; conversational context is disposable.
 
@@ -218,7 +245,7 @@ These are omp features. KEEL relies on the underlying runtime and durable projec
 
 ---
 
-## 11. Checkpoints and recovery
+## 12. Checkpoints and recovery
 
 In a Git worktree, KEEL creates a checkpoint before the first mutation:
 
@@ -244,7 +271,7 @@ Normal Git history remains the primary recovery mechanism. The KEEL checkpoint i
 
 ---
 
-## 12. Multiple tasks
+## 13. Multiple tasks
 
 After completing a task, give KEEL another one normally. Task state is tracked in the project's control documents, including `docs/report.md`.
 
@@ -254,7 +281,7 @@ Starting the next task from a clean conversational context is usually the simple
 
 ---
 
-## 13. Safety boundaries
+## 14. Safety boundaries
 
 KEEL combines:
 
@@ -273,7 +300,7 @@ KEEL does not treat prompts alone as a security boundary.
 
 ---
 
-## 14. Monitoring
+## 15. Monitoring
 
 | What you want | Where |
 |---|---|
@@ -287,7 +314,7 @@ The exact UI and runtime commands belong to omp and may evolve independently of 
 
 ---
 
-## 15. Changing models
+## 16. Changing models
 
 Model selection is left to the user. KEEL's role configuration contains placeholders that must be replaced during installation.
 
@@ -297,7 +324,7 @@ For model changes, run the repository's smoke evaluation described by `docs-temp
 
 ---
 
-## 16. Troubleshooting
+## 17. Troubleshooting
 
 ### KEEL does not appear to be active
 
@@ -328,8 +355,9 @@ Check that:
 1. `docs/contract.md` exists;
 2. the contract has no unresolved placeholders;
 3. `docs/plan.md` contains a usable `SCOPE` block;
-4. the plan reached the required approval gate;
-5. configured model IDs are valid and available.
+4. Gate #1 has run for the current plan;
+5. the implementation approval was confirmed;
+6. configured model IDs are valid and available.
 
 ### A mutation is blocked
 
@@ -350,7 +378,7 @@ Inspect the exact evidence and failure returned by the real system. KEEL is desi
 
 ---
 
-## 17. What KEEL cannot know
+## 18. What KEEL cannot know
 
 KEEL cannot verify a requirement that was never defined and could not be inferred from the repository.
 
@@ -360,7 +388,7 @@ The plan/contract approval point is therefore where you confirm what "correct" m
 
 ---
 
-## 18. Documentation map
+## 19. Documentation map
 
 - [Installation](INSTALL.md)
 - [Architecture](ARCHITECTURE.md)

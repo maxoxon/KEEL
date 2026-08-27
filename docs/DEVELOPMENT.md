@@ -46,10 +46,13 @@ project/
     ├── plan.md
     ├── report.md
     ├── review.md
+    ├── decisions.md
     └── PHASE_REPORT_<slug>.md
 ```
 
 These files are part of the active harness state machine. The primary/orchestrator owns the canonical control files. Subagents must not rewrite the contract, plan/SCOPE, task registry, or review verdict. Implementation details belong in phase reports.
+
+`review.md` is a stamped courtesy copy of the reviewer relay; the extension's in-memory relay is what the coder actually consumes. `decisions.md` is the durable engineering-decision log. `PHASE_REPORT_<slug>.md` is where subagent-specific implementation findings belong.
 
 ---
 
@@ -67,26 +70,31 @@ contract discovery
 contract complete
   │
   ▼
-plan
+plan + SCOPE
   │
   ▼
-plan approval
+Gate #1 — reviewer checks plan/contract
+  │
+  ▼
+user approval
   │
   ▼
 implementation
   │
-  ├───────────────┐
-  ▼               │
-review            │
-  │               │
-  ├── changes ────┘
+  ├──────────────────────────────┐
+  ▼                              │
+conditional Gate #2 — review     │
+  │                              │
+  ├── changes required ──────────┘
   │
   ▼
-acceptance
+independent acceptance
   │
   ▼
 verified / closed
 ```
+
+Gate #2 is not mandatory on every coder pass. The reviewer agent defines the triggers: repeated native-check failure, behavior that cannot be auto-checked, a larger diff, or a sensitive zone. The implementation loop remains bounded rather than becoming an autonomous infinite repair cycle. fileciteturn39file0L2-L2
 
 The exact phase shown in the status UI is derived from durable project state. The UI is not itself the source of truth.
 
@@ -157,7 +165,7 @@ primary/orchestrator
 
 The primary session controls role creation. A role may use the read-only scout where permitted, but the workflow must not become an unrestricted recursive tree.
 
-The coder is the intended project-code writer. Planner, reviewer, designer, and scout are constrained from project mutation by their role configuration and KEEL enforcement.
+The coder is the intended project-code writer. Planner, designer, and scout are strictly read-only under KEEL. Reviewer has no project write tools but may perform browser/MCP interaction required to verify a UI; it is therefore not in the strict read-only set. The extension still scope-checks identifiable MCP targets and blocks LSP write actions.
 
 ---
 
@@ -202,13 +210,15 @@ Task types are persisted in the contract because they affect mechanics.
 When adding one:
 
 1. define its semantics;
-2. define gate/effort behavior;
+2. define effort and any additional gate behavior that is actually implemented;
 3. define required evidence;
 4. implement runtime behavior;
 5. inject type-specific rules into relevant roles;
 6. add deterministic verification coverage;
 7. update `docs/MANIFEST.md`;
 8. update `docs/USAGE.md` if user-visible behavior changes.
+
+The current runtime uses task type for rules, per-spawn effort, audit coder exclusion, and milestone requirements. Do not document an approval count as active behavior unless the extension actually consumes it.
 
 A task type that only changes prompt tone probably belongs in a skill instead.
 
@@ -254,7 +264,8 @@ The installer is a bootstrapper, not a configuration-merger engine.
 
 - verify links and paths;
 - compare commands and filenames with current files;
-- ensure no behavior is claimed that the source does not implement.
+- ensure no behavior is claimed that the source does not implement;
+- update architecture diagrams when role flow changes.
 
 ### Installer change
 
@@ -291,6 +302,8 @@ Also test the bypass path that motivated the guard. Blocking `edit` while allowi
 
 When adding a required artifact or invariant, add a deterministic verification check for it. A check should fail with a useful message identifying what is missing and where it is expected.
 
+`tests/doc-conformance.sh` is a separate source-conformance check against a local omp checkout. It validates that KEEL's assumptions about hooks, task agents, skills, configuration, and context reach still match the upstream runtime/documentation.
+
 ---
 
 ## 16. Debugging
@@ -320,6 +333,7 @@ docs/contract.md
 docs/plan.md
 docs/report.md
 docs/review.md
+docs/decisions.md
 ```
 
 ---
