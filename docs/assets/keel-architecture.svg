@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">KEEL architecture — engineering control layer on top of omp</title>
+<desc id="desc">A restrained technical architecture diagram showing KEEL above omp, with contract, plan, scope, review, verification, checkpoints, guards, roles, workflow and handoffs controlling the coding-agent runtime and its models, tools, subagents, LSP, MCP, memory, sessions and extensions.</desc>
+<defs>
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#252a2d" stroke-width="1"/></pattern>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9ba3a6"/></marker>
+  <style>
+    .bg{fill:#0a0c0d}.grid{fill:url(#grid);opacity:.26}.frame{fill:none;stroke:#697174;stroke-width:1}.hair{fill:none;stroke:#4b5356;stroke-width:1}.strong{fill:none;stroke:#aab2b4;stroke-width:1.4}.accent{fill:#76b8b4}.white{fill:#e5e8e8}.muted{fill:#9aa2a5}.dim{fill:#6e777a}.title{font:600 38px Arial,sans-serif;letter-spacing:5px}.h2{font:600 18px Arial,sans-serif;letter-spacing:3px}.label{font:600 14px Arial,sans-serif;letter-spacing:2px}.body{font:13px Arial,sans-serif}.small{font:11px Arial,sans-serif;letter-spacing:1px}.tiny{font:9px Arial,sans-serif;letter-spacing:1.5px}.mono{font:12px monospace;letter-spacing:1px}
+  </style>
+</defs>
+<rect class="bg" width="1600" height="900"/>
+<rect class="grid" x="20" y="20" width="1560" height="860"/>
+<rect class="frame" x="20" y="20" width="1560" height="860"/>
+<path class="hair" d="M20 70H1580M20 842H1580"/>
+<text x="58" y="57" class="label white">KEEL</text><text x="122" y="57" class="small muted">ENGINEERING HARNESS FOR AI CODING AGENTS</text>
+<text x="800" y="57" text-anchor="middle" class="tiny dim">README / ARCHITECTURE / SYSTEM OVERVIEW</text>
+<text x="1540" y="57" text-anchor="end" class="tiny muted">BUILT ON OMP</text>
+
+<text x="800" y="108" text-anchor="middle" class="title white">WHAT KEEL ADDS ON TOP OF OMP</text>
+<text x="800" y="137" text-anchor="middle" class="body muted">A controlled engineering layer around an AI coding-agent runtime</text>
+
+<!-- KEEL layer -->
+<rect class="strong" x="55" y="165" width="1490" height="250"/>
+<text x="78" y="193" class="h2 accent">01  KEEL / ENGINEERING CONTROL LAYER</text>
+<text x="1522" y="193" text-anchor="end" class="tiny dim">CONTROL • CONFIGURATION • ENFORCEMENT</text>
+
+<!-- controls -->
+<g>
+  <rect class="frame" x="78" y="220" width="137" height="145"/><text x="146" y="247" text-anchor="middle" class="label white">CONTRACT</text><path class="hair" d="M98 265H194M98 278H194"/><path class="strong" d="M112 302h24v28h-24zM112 302l12-10 12 10"/><text x="146" y="348" text-anchor="middle" class="small muted">Acceptance</text><text x="146" y="362" text-anchor="middle" class="small muted">criteria</text>
+  <rect class="frame" x="227" y="220" width="137" height="145"/><text x="295" y="247" text-anchor="middle" class="label white">PLAN</text><path class="hair" d="M247 265H343M247 278H343"/><path class="strong" d="M255 302h80M255 315h58M255 328h68"/><text x="295" y="348" text-anchor="middle" class="small muted">Change</text><text x="295" y="362" text-anchor="middle" class="small muted">boundary</text>
+  <rect class="frame" x="376" y="220" width="137" height="145"/><text x="444" y="247" text-anchor="middle" class="label white">SCOPE</text><path class="hair" d="M396 265H492M396 278H492"/><path class="strong" d="M410 302h68v30h-68zM419 311h50M419 321h32"/><text x="444" y="348" text-anchor="middle" class="small muted">Mutation</text><text x="444" y="362" text-anchor="middle" class="small muted">lock</text>
+  <rect class="frame" x="525" y="220" width="137" height="145"/><text x="593" y="247" text-anchor="middle" class="label white">REVIEW</text><circle class="strong" cx="593" cy="315" r="25"/><path class="strong" d="M611 333l16 16"/><text x="593" y="348" text-anchor="middle" class="small muted">Independent</text><text x="593" y="362" text-anchor="middle" class="small muted">gates</text>
+  <rect class="frame" x="674" y="220" width="137" height="145"/><text x="742" y="247" text-anchor="middle" class="label white">VERIFY</text><path class="strong" d="M711 302l13 13 28-31"/><rect class="strong" x="700" y="291" width="45" height="45"/><text x="742" y="348" text-anchor="middle" class="small muted">Evidence</text><text x="742" y="362" text-anchor="middle" class="small muted">over status</text>
+  <rect class="frame" x="823" y="220" width="137" height="145"/><text x="891" y="247" text-anchor="middle" class="label white">CHECKPOINTS</text><path class="strong" d="M856 300h70v38h-70zM870 300v-9h42v9"/><text x="891" y="348" text-anchor="middle" class="small muted">Recovery</text><text x="891" y="362" text-anchor="middle" class="small muted">points</text>
+  <rect class="frame" x="972" y="220" width="137" height="145"/><text x="1040" y="247" text-anchor="middle" class="label white">GUARDS</text><path class="strong" d="M1040 292l25 10v17c0 18-13 28-25 34-12-6-25-16-25-34v-17z"/><text x="1040" y="348" text-anchor="middle" class="small muted">Runtime</text><text x="1040" y="362" text-anchor="middle" class="small muted">enforcement</text>
+  <rect class="frame" x="1121" y="220" width="137" height="145"/><text x="1189" y="247" text-anchor="middle" class="label white">ROLES</text><circle class="strong" cx="1189" cy="302" r="12"/><circle class="strong" cx="1170" cy="318" r="9"/><circle class="strong" cx="1208" cy="318" r="9"/><path class="strong" d="M1160 344c2-13 14-19 29-19s27 6 29 19"/><text x="1189" y="348" text-anchor="middle" class="small muted">Separation</text><text x="1189" y="362" text-anchor="middle" class="small muted">of duties</text>
+  <rect class="frame" x="1270" y="220" width="137" height="145"/><text x="1338" y="247" text-anchor="middle" class="label white">WORKFLOW</text><path class="strong" d="M1295 304h30M1338 304h30M1310 292l15 12-15 12M1353 292l15 12-15 12"/><text x="1338" y="348" text-anchor="middle" class="small muted">Handoffs</text><text x="1338" y="362" text-anchor="middle" class="small muted">and state</text>
+</g>
+
+<!-- central relationship -->
+<line class="strong" x1="800" y1="415" x2="800" y2="462" marker-end="url(#arrow)"/>
+<text x="820" y="443" class="tiny accent">GOVERNS CONDITIONS OF EXECUTION</text>
+
+<!-- OMP -->
+<rect class="strong" x="55" y="465" width="1490" height="205"/>
+<text x="78" y="493" class="h2 white">02  OMP / EXECUTION FOUNDATION</text>
+<text x="1522" y="493" text-anchor="end" class="tiny dim">RUNTIME PRIMITIVES</text>
+<text x="800" y="523" text-anchor="middle" class="body muted">OMP executes the work; KEEL controls how and when that work may execute.</text>
+
+<g>
+ <rect class="frame" x="85" y="545" width="155" height="92"/><text x="162" y="570" text-anchor="middle" class="label white">MODELS</text><text x="162" y="592" text-anchor="middle" class="small muted">Provider / model</text><text x="162" y="608" text-anchor="middle" class="small muted">routing</text>
+ <rect class="frame" x="255" y="545" width="155" height="92"/><text x="332" y="570" text-anchor="middle" class="label white">TOOLS</text><text x="332" y="592" text-anchor="middle" class="small muted">Native execution</text><text x="332" y="608" text-anchor="middle" class="small muted">surfaces</text>
+ <rect class="frame" x="425" y="545" width="155" height="92"/><text x="502" y="570" text-anchor="middle" class="label white">SUBAGENTS</text><text x="502" y="592" text-anchor="middle" class="small muted">Task / role</text><text x="502" y="608" text-anchor="middle" class="small muted">execution</text>
+ <rect class="frame" x="595" y="545" width="155" height="92"/><text x="672" y="570" text-anchor="middle" class="label white">LSP / MCP</text><text x="672" y="592" text-anchor="middle" class="small muted">Code + external</text><text x="672" y="608" text-anchor="middle" class="small muted">tooling</text>
+ <rect class="frame" x="765" y="545" width="155" height="92"/><text x="842" y="570" text-anchor="middle" class="label white">MEMORY</text><text x="842" y="592" text-anchor="middle" class="small muted">Context + durable</text><text x="842" y="608" text-anchor="middle" class="small muted">knowledge</text>
+ <rect class="frame" x="935" y="545" width="155" height="92"/><text x="1012" y="570" text-anchor="middle" class="label white">SESSIONS</text><text x="1012" y="592" text-anchor="middle" class="small muted">Compaction +</text><text x="1012" y="608" text-anchor="middle" class="small muted">handoff</text>
+ <rect class="frame" x="1105" y="545" width="155" height="92"/><text x="1182" y="570" text-anchor="middle" class="label white">EXTENSIONS</text><text x="1182" y="592" text-anchor="middle" class="small muted">Runtime lifecycle</text><text x="1182" y="608" text-anchor="middle" class="small muted">hooks</text>
+ <rect class="frame" x="1275" y="545" width="155" height="92"/><text x="1352" y="570" text-anchor="middle" class="label white">TERMINAL UI</text><text x="1352" y="592" text-anchor="middle" class="small muted">Interactive</text><text x="1352" y="608" text-anchor="middle" class="small muted">execution</text>
+</g>
+
+<!-- outcome -->
+<line class="hair" x1="800" y1="670" x2="800" y2="707" marker-end="url(#arrow)"/>
+<rect class="frame" x="410" y="712" width="780" height="82"/>
+<text x="800" y="744" text-anchor="middle" class="h2 white">03  CONTROLLED AI ENGINEERING ENVIRONMENT</text>
+<text x="800" y="769" text-anchor="middle" class="body muted">Reliable  ·  Predictable  ·  Auditable  ·  Production-Ready</text>
+
+<!-- side callouts -->
+<path class="hair" d="M55 465H28V240H55M1545 465H1572V240H1545"/>
+<text x="31" y="225" class="tiny accent">KEEL ADDS</text>
+<text x="31" y="245" class="tiny muted">CONTRACT</text><text x="31" y="260" class="tiny muted">SCOPE</text><text x="31" y="275" class="tiny muted">REVIEW</text><text x="31" y="290" class="tiny muted">GUARDS</text><text x="31" y="305" class="tiny muted">ROLES</text><text x="31" y="320" class="tiny muted">HANDOFFS</text>
+<text x="1568" y="225" text-anchor="end" class="tiny accent">OMP PROVIDES</text>
+<text x="1568" y="245" text-anchor="end" class="tiny muted">MODELS</text><text x="1568" y="260" text-anchor="end" class="tiny muted">TOOLS</text><text x="1568" y="275" text-anchor="end" class="tiny muted">SUBAGENTS</text><text x="1568" y="290" text-anchor="end" class="tiny muted">LSP / MCP</text><text x="1568" y="305" text-anchor="end" class="tiny muted">MEMORY</text><text x="1568" y="320" text-anchor="end" class="tiny muted">SESSIONS</text><text x="1568" y="335" text-anchor="end" class="tiny muted">EXTENSIONS</text>
+
+<text x="58" y="865" class="tiny dim">KEEL  /  ENGINEERING CONTROL LAYER</text><text x="800" y="865" text-anchor="middle" class="tiny dim">THE RUNTIME EXECUTES. THE HARNESS ENFORCES THE ENGINEERING PROCESS.</text><text x="1542" y="865" text-anchor="end" class="tiny dim">MIT LICENSE</text>
+</svg>
