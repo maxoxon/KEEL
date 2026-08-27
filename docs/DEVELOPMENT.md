@@ -94,7 +94,7 @@ independent acceptance
 verified / closed
 ```
 
-Gate #2 is not mandatory on every coder pass. The reviewer agent defines the triggers: repeated native-check failure, behavior that cannot be auto-checked, a larger diff, or a sensitive zone. The implementation loop remains bounded rather than becoming an autonomous infinite repair cycle. fileciteturn39file0L2-L2
+Gate #2 is not mandatory on every coder pass. The reviewer agent defines the triggers: repeated native-check failure, behavior that cannot be auto-checked, a larger diff, or a sensitive zone. The implementation loop remains bounded rather than becoming an autonomous infinite repair cycle.
 
 The exact phase shown in the status UI is derived from durable project state. The UI is not itself the source of truth.
 
