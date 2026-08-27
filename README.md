@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/visuals/keel-logo.png" alt="KEEL" width="720">
+
 # KEEL
 
 ### An engineering harness for AI coding agents
@@ -11,7 +13,7 @@ KEEL is an opinionated layer on top of [omp](https://omp.sh/) that adds an engin
 [![Requires omp](https://img.shields.io/badge/requires-omp-111827?style=flat-square)](https://omp.sh/)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-**[Quick Start](#quick-start)** · **[How It Works](#how-it-works)** · **[Architecture](#architecture)** · **[Documentation](#documentation)**
+**[Quick Start](#quick-start)** · **[How It Works](#how-it-works)** · **[Architecture](#architecture)** · **[Visuals](#visuals)** · **[Documentation](#documentation)**
 
 </div>
 
@@ -36,42 +38,9 @@ Most of these problems are handled with prompts and good intentions.
 
 ## What KEEL does
 
-KEEL turns an AI coding session into a controlled engineering pipeline:
+KEEL turns an AI coding session into a controlled engineering pipeline.
 
-```text
-     YOUR REQUEST
-          │
-          ▼
-   ┌──────────────┐
-   │   CONTRACT   │  What must be true when we're done
-   └──────┬───────┘
-          ▼
-   ┌──────────────┐
-   │     PLAN     │  What will change and where
-   └──────┬───────┘
-          ▼
-   ┌──────────────┐
-   │  PLAN REVIEW  │  A separate reviewer gates the plan
-   └──────┬───────┘
-          ▼
-   ┌──────────────┐
-   │   APPROVAL   │  You approve the actual plan
-   └──────┬───────┘
-          ▼
-   ┌──────────────┐
-   │     CODE     │  The coder works inside the scope
-   └──────┬───────┘
-          ▼
-   ┌──────────────────────────────┐
-   │ CONDITIONAL REVIEW / REVISE  │  Re-review when required
-   └──────────────┬───────────────┘
-                  ▼
-   ┌──────────────┐
-   │   VERIFY     │  Acceptance is checked against reality
-   └──────┬───────┘
-          ▼
-         DONE
-```
+![KEEL controlled engineering workflow](docs/visuals/keel-workflow.png)
 
 The implementation loop can run through multiple coder/reviewer iterations. The reviewer is not a mandatory post-code pass on every implementation: it re-enters after code when native checks fail repeatedly, behavior cannot be checked automatically, the diff is large, or a sensitive area changed. You only get pulled back in when a meaningful decision, approval, or real blocker requires you.
 
@@ -85,25 +54,9 @@ KEEL **requires [omp](https://omp.sh/)**. It is not a fork of omp and does not r
 
 [omp](https://omp.sh/) provides the underlying coding-agent runtime: models, tools, subagents, LSP, memory, MCP, sessions, extensions, and the terminal UI.
 
-KEEL adds the engineering layer on top:
+KEEL adds the engineering layer on top.
 
-```text
-┌──────────────────────────────────────────┐
-│                  KEEL                    │
-│                                          │
-│ Contract · Plan · Scope · Review         │
-│ Verification · Checkpoints · Guards      │
-│ Agent roles · Workflow · Handoffs        │
-└────────────────────┬─────────────────────┘
-                     │
-                     ▼
-┌──────────────────────────────────────────┐
-│                   omp                    │
-│                                          │
-│ Models · Tools · Subagents · LSP         │
-│ MCP · Memory · Sessions · Extensions    │
-└──────────────────────────────────────────┘
-```
+![KEEL system model](docs/visuals/keel-system-model.png)
 
 ### Why not build another agent?
 
@@ -170,53 +123,29 @@ The roles use omp's native subagent and tool mechanisms. KEEL adds its own rules
 
 The important distinction is that **review happens twice, for different reasons**: Gate #1 is a pre-code review of the contract and plan; Gate #2 is a conditional post-code review of the implementation. The second gate is not run on every implementation pass.
 
-```text
-                              USER
-                                │
-                                ▼
-                         ORCHESTRATOR
-                                │
-             ┌──────────────────┼──────────────────┐
-             ▼                  ▼                  ▼
-          PLANNER             SCOUT             DESIGNER
-             │
-             ▼
-      CONTRACT + PLAN
-             │
-             ▼
-       REVIEWER · GATE #1
-       plan / contract
-             │
-             ▼
-          APPROVAL
-             │
-             ▼
-           CODER
-             │
-             ▼
-       IMPLEMENTATION
-             │
-             ├───────────────┐
-             ▼               │
-   REVIEWER · GATE #2       │
-   conditional              │
-             │               │
-       ┌─────┴─────┐         │
-       ▼           ▼         │
-    REVISE       PASS        │
-       │           │         │
-       └─────► CODER         │
-                   │         │
-                   └─────────┘
-                         │
-                         ▼
-              INDEPENDENT VERIFY
-                         │
-                         ▼
-                      VERIFIED
-```
+![KEEL architecture](docs/visuals/keel-architecture.png)
+
+The internal role topology is documented separately:
+
+![KEEL internal agent topology](docs/visuals/keel-internal-agent-topology.png)
 
 The primary session owns the control documents. The coder is the only role intended to write project code. Planner, designer, and scout are strictly read-only; the reviewer has no project write tools and no browser/MCP tools in its declared tool set. Browser-based UI verification belongs to the contract-bound implementation path when `visual-tooling` is injected.
+
+---
+
+## Visuals
+
+The canonical KEEL visual set is kept in [`docs/visuals/`](docs/visuals/).
+
+| Visual | Purpose |
+|---|---|
+| [`keel-logo.png`](docs/visuals/keel-logo.png) | KEEL brand mark and horizontal lockup |
+| [`keel-workflow.png`](docs/visuals/keel-workflow.png) | Controlled engineering workflow |
+| [`keel-system-model.png`](docs/visuals/keel-system-model.png) | KEEL system model and control layer |
+| [`keel-internal-agent-topology.png`](docs/visuals/keel-internal-agent-topology.png) | Internal agent topology and role orchestration |
+| [`keel-architecture.png`](docs/visuals/keel-architecture.png) | High-level KEEL architecture and system layers |
+
+These visuals are canonical documentation assets. They are intentionally kept separate from implementation documentation so the repository root stays clean.
 
 ---
 
