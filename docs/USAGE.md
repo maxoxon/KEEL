@@ -75,10 +75,10 @@ closed
 
 Gate #1 and Gate #2 are different checks:
 
-- **Gate #1 — pre-code review.** The reviewer checks the contract and plan before implementation. It checks completeness, dependencies/blast radius, scope, over-engineering, real-data acceptance criteria, and coherence between fields. It then writes the exact `next_prompt` for the coder. fileciteturn39file0L2-L2
-- **Gate #2 — conditional implementation review.** The reviewer does not re-review every coder pass. It is triggered when native checks fail twice, behavior cannot be auto-checked, the diff is large (roughly more than six files), or a sensitive area changed. When triggered, it reads the actual diff and audits it against the plan, evidence, verification state, and scope. fileciteturn39file0L2-L2
+- **Gate #1 — pre-code review.** The reviewer checks the contract and plan before implementation. It checks completeness, dependencies/blast radius, scope, over-engineering, real-data acceptance criteria, and coherence between fields. It then writes the exact `next_prompt` for the coder.
+- **Gate #2 — conditional implementation review.** The reviewer does not re-review every coder pass. It is triggered when native checks fail twice, behavior cannot be auto-checked, the diff is large (roughly more than six files), or a sensitive area changed. When triggered, it reads the actual diff and audits it against the plan, evidence, verification state, and scope.
 
-The reviewer is not a second coder. It has no edit/write/bash tools and returns a structured verdict. The extension relays its `next_prompt` to the coder verbatim when another implementation pass is required. fileciteturn39file0L2-L2
+The reviewer is not a second coder. It has no edit/write/bash tools and returns a structured verdict. The extension relays its `next_prompt` to the coder verbatim when another implementation pass is required.
 
 The reviewer also does **not** drive the browser MCP. UI live verification is performed by the contract-bound implementation path when `visual-tooling` is injected; the shipped `mcp.json` specifically configures the browser MCP for the coder. The reviewer remains a code/plan gatekeeper and may request a browser run through `needs` when it cannot perform that action itself.
 
