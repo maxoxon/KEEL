@@ -287,7 +287,7 @@ omp
 
 Then give the orchestrator a task in natural language.
 
-For the full workflow, see **[USAGE.md](USAGE.md)**.
+For the full workflow, see **[docs/USAGE.md](docs/USAGE.md)**.
 
 ---
 
@@ -319,7 +319,7 @@ The installer places files under:
 
 Existing files are not silently overwritten. If you already customized omp, the installer tells you which files need to be merged manually.
 
-For detailed installation and configuration, see **[INSTALL.md](INSTALL.md)**.
+For detailed installation and configuration, see **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 ---
 
@@ -376,19 +376,20 @@ For a trivial one-line change, KEEL may be more process than you need. That's in
 
 | Document | Purpose |
 |---|---|
-| **[USAGE.md](USAGE.md)** | Day-to-day workflow and how to give KEEL tasks |
-| **[INSTALL.md](INSTALL.md)** | Installation, model configuration, verification, and troubleshooting |
-| **[Technical Architecture](docs/ARCHITECTURE.md)** | Deep dive into the harness, state machine, agent topology, guards, scope enforcement, structured output, recovery, and extension model |
-| **[MANIFEST.md](MANIFEST.md)** | Detailed inventory of agents, skills, instructions, configuration, and guards |
+| **[docs/USAGE.md](docs/USAGE.md)** | Day-to-day workflow and how to give KEEL tasks |
+| **[docs/INSTALL.md](docs/INSTALL.md)** | Installation, model configuration, verification, and troubleshooting |
+| **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | Deep dive into the harness, state machine, agent topology, guards, scope enforcement, structured output, recovery, and extension model |
+| **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** | Safe changes to the harness and maintainer workflow |
+| **[docs/MANIFEST.md](docs/MANIFEST.md)** | Current inventory of agents, skills, instructions, configuration, and guards |
 | **`agent/`** | The actual KEEL harness files installed into omp |
 
 If you are new to KEEL:
 
-**README → Quick Start → [USAGE.md](USAGE.md) → [INSTALL.md](INSTALL.md)**
+**README → [docs/INSTALL.md](docs/INSTALL.md) → [docs/USAGE.md](docs/USAGE.md)**
 
 If you are auditing or developing KEEL:
 
-**[Technical Architecture](docs/ARCHITECTURE.md) → [MANIFEST.md](MANIFEST.md) → `agent/` source → `verify.*` / `tests/`**
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) → [docs/MANIFEST.md](docs/MANIFEST.md) → `agent/` source → `verify.*` / `tests/`**
 
 ---
 
