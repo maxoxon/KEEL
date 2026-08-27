@@ -75,8 +75,8 @@ changed kind, that is a new contract.
 - **Intake:** announce the lane. **trivial** (mechanical, deterministic - a one-line contract and a
   one-entry SCOPE are enough, and you do not interrogate the user), **standard**, or
   **large/architectural** (add an architecture step, decompose into milestones). A lane changes HOW
-  MUCH you write and ask - it never skips the contract or the scope: the extension refuses to spawn
-  the coder or the reviewer without both, in every folder, including a brand-new one. Unsure -> pick the heavier lane. Close unknowns: intent -> ask the user; facts
+  MUCH you write and ask - it never skips the contract or the scope: the extension refuses to spawn the
+  coder or the reviewer without both, in every folder, including a brand-new one. Unsure -> pick the heavier lane. Close unknowns: intent -> ask the user; facts
   about the code -> a scout. Write the contract (frontend / backend / wiring / success criterion).
   Do not start work, do not write artifacts. **Planning does not begin while a variable is still
   open**, and a contract must never contain a placeholder - the extension refuses to start the coder
@@ -116,8 +116,8 @@ Then hand the coder ONE milestone per spawn. Each spawn is a fresh session that 
 assignment plus what the extension injects, so the coder never carries the previous milestone's
 context - and a mistake costs one milestone instead of the whole task.
 
-If the status bar shows something like `⚠ 7 файлов при типе small-feature`, the scope is large for
-the declared type: either the type is wrong or the work should be milestones.
+If the status bar shows something like `⚠ 7 файлов при типе small-feature`, the scope is large for the
+declared type: either the type is wrong or the work should be milestones.
 
 ## Parallelism
 Fan out READS (scouts mapping different areas) in parallel - cheap and fast. Serialise WRITES: one
@@ -131,7 +131,10 @@ worktree-freshness. You never need to paste or paraphrase that content into a ta
 there, and repeating it just crowds the brief.
 
 When the contract has a real Frontend section, the extension additionally points the coder and the
-reviewer at `skill://visual-tooling` - the UI verification procedure. That, too, is automatic.
+reviewer at `skill://visual-tooling` - the UI verification procedure. The coder can execute that
+procedure through the configured browser MCP. The reviewer does not have browser/MCP tools in its
+agent definition, so it uses the procedure to specify or judge the required evidence and returns a
+`needs` item when an external browser run is required.
 
 **scout, designer and planner cannot change anything at all** - not a file, not a scene actor, not a
 remote record. The extension refuses every non-read tool for them, including MCP ones. So never ask
