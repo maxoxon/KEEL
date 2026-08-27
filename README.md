@@ -133,21 +133,6 @@ The primary session owns the control documents. The coder is the only role inten
 
 ---
 
-## Visuals
-
-The canonical KEEL visual set is kept in [`docs/visuals/`](docs/visuals/).
-
-| Visual | Purpose |
-|---|---|
-| [`keel-logo.png`](docs/visuals/keel-logo.png) | KEEL brand mark and horizontal lockup |
-| [`keel-workflow.png`](docs/visuals/keel-workflow.png) | Controlled engineering workflow |
-| [`keel-system-model.png`](docs/visuals/keel-system-model.png) | KEEL system model and control layer |
-| [`keel-internal-agent-topology.png`](docs/visuals/keel-internal-agent-topology.png) | Internal agent topology and role orchestration |
-| [`keel-architecture.png`](docs/visuals/keel-architecture.png) | High-level KEEL architecture and system layers |
-
-These visuals are canonical documentation assets. They are intentionally kept separate from implementation documentation so the repository root stays clean.
-
----
 
 ## Enforcement, not just prompts
 
