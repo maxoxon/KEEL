@@ -228,9 +228,11 @@ Some KEEL workflows use omp's LSP integration for repository navigation and diag
 
 Install the language servers appropriate for your project and ensure omp can access them.
 
-For UI work, KEEL can use browser/MCP tooling for live verification. The browser MCP configuration is supplied as part of the harness, but the command/environment required to run the MCP server depends on your local setup.
+For UI work, the contract-bound implementation path can use browser/MCP tooling for live verification. KEEL ships the browser MCP configuration in `mcp.json`; the shipped configuration uses `patchright-mcp`, but the command still depends on the local Node/npm environment and must be available where you run omp. The `visual-tooling` skill defines the browser verification procedure.
 
-Do not treat the presence of `mcp.json` as proof that a browser server is installed and working. Verify the external dependency in the environment where you intend to use it.
+The reviewer is **not** the browser driver: its declared tools are read-only code/analysis tools and do not include browser/MCP interaction. It can request a browser run through its structured `needs` output when the caller must perform an external check.
+
+Do not treat the presence of `mcp.json` as proof that the browser server is installed and working. Verify the external dependency in the environment where you intend to use it.
 
 ---
 
