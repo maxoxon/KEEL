@@ -261,9 +261,9 @@ CONTRACT + PLAN
    └──→ CODER
 ```
 
-Gate #1 is the normal pre-code plan/contract review. Gate #2 is conditional: the reviewer re-enters after implementation when a native check fails twice, behavior cannot be auto-checked, the diff is larger than roughly six files, or a sensitive zone changed. The reviewer reads the actual diff rather than trusting the coder's summary. fileciteturn39file0L2-L2
+Gate #1 is the normal pre-code plan/contract review. Gate #2 is conditional: the reviewer re-enters after implementation when a native check fails twice, behavior cannot be auto-checked, the diff is larger than roughly six files, or a sensitive zone changed. The reviewer reads the actual diff rather than trusting the coder's summary.
 
-The reviewer returns `verdict`, `next_prompt`, and optional `findings` / `needs`. `next_prompt` is relayed verbatim to the coder through the extension and is captured as a courtesy copy in `docs/review.md`. The runtime treats the in-memory relay as the load-bearing state; the file is stamped to identify which plan was gated. fileciteturn39file0L2-L2
+The reviewer returns `verdict`, `next_prompt`, and optional `findings` / `needs`. `next_prompt` is relayed verbatim to the coder through the extension and is captured as a courtesy copy in `docs/review.md`. The runtime treats the in-memory relay as the load-bearing state; the file is stamped to identify which plan was gated.
 
 ---
 
