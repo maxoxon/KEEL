@@ -103,10 +103,12 @@ The runtime extension and omp's native agent filtering prevent unrestricted recu
 The exact frontmatter in each agent file is authoritative. Conceptually:
 
 - planner: repository reads, grep/glob, LSP navigation;
-- reviewer: repository reads, LSP/navigation, AST inspection, image inspection, and browser/MCP interaction when UI verification requires it;
-- coder: read/write/edit, shell, grep/glob, LSP, debugging and inspection tools available to the harness;
+- reviewer: repository reads, LSP/navigation, AST inspection, and image inspection;
+- coder: read/write/edit, shell, grep/glob, LSP, debugging and inspection tools available to the harness; when frontend verification is required, the runtime can provide the configured browser MCP through the visual-tooling path;
 - designer: read-only repository and image inspection;
 - scout: read-only repository reconnaissance.
+
+The reviewer does **not** have browser/MCP tools in its declared tool set. It is a plan/code gatekeeper, not the browser driver. The browser MCP is configured for the contract-bound implementation path, specifically the coder.
 
 omp can derive or add tools at runtime. Do not treat the Markdown allowlist as a complete description of every runtime tool. KEEL therefore performs additional read-only and mutation checks in the extension.
 
@@ -158,7 +160,7 @@ Important harness areas include:
 
 `agent/models.yml` is intentionally minimal and relies primarily on omp's model/provider facilities. OpenRouter is used through omp's built-in provider support unless a custom provider is explicitly configured.
 
-`agent/mcp.json` supplies the browser/MCP integration used for live UI verification when configured in the environment.
+`agent/mcp.json` supplies the browser/MCP integration used for live UI verification by the contract-bound implementation path. The shipped configuration specifically targets `patchright-mcp`; its external command must still be available in the local environment.
 
 Credentials are not part of these files; authentication belongs to omp.
 
@@ -188,7 +190,7 @@ The current implementation contains guard families for:
 16. harness self-protection;
 17. milestone decomposition for applicable task types.
 
-The extension also contains shell-write target detection and special handling for `audit` tasks. The reviewer is intentionally not in the strict read-only set because it may perform browser/MCP interaction for UI verification; its lack of project write tools and the scope/LSP guards provide the boundary.
+The extension also contains shell-write target detection and special handling for `audit` tasks. The reviewer is intentionally not in the strict read-only set because it is handled as a distinct gatekeeper role; it still has no project-write tools and does not have browser/MCP tools. Browser/MCP verification belongs to the contract-bound implementation path.
 
 The exact predicates and hook behavior are defined in `agent/extensions/keel.ts`.
 
