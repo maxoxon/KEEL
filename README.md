@@ -137,7 +137,7 @@ The coder reports what was verified and what was not. The reviewer independently
 
 ### Verification can reach the real system
 
-For UI work, KEEL can use browser-based tooling and require evidence from the running application instead of treating source code as proof that the UI works.
+For UI work, the contract-bound implementation path can use browser-based tooling and require evidence from the running application instead of treating source code as proof that the UI works.
 
 ### The workflow survives context loss
 
@@ -216,7 +216,7 @@ The important distinction is that **review happens twice, for different reasons*
                       VERIFIED
 ```
 
-The primary session owns the control documents. The coder is the only role intended to write project code. Planner, designer, and scout are strictly read-only; the reviewer has no project write tools but may use browser/MCP interaction when the task requires UI verification. KEEL's extension adds the runtime checks that make these boundaries mechanical.
+The primary session owns the control documents. The coder is the only role intended to write project code. Planner, designer, and scout are strictly read-only; the reviewer has no project write tools and no browser/MCP tools in its declared tool set. Browser-based UI verification belongs to the contract-bound implementation path when `visual-tooling` is injected.
 
 ---
 
