@@ -378,12 +378,17 @@ For a trivial one-line change, KEEL may be more process than you need. That's in
 |---|---|
 | **[USAGE.md](USAGE.md)** | Day-to-day workflow and how to give KEEL tasks |
 | **[INSTALL.md](INSTALL.md)** | Installation, model configuration, verification, and troubleshooting |
+| **[Technical Architecture](docs/ARCHITECTURE.md)** | Deep dive into the harness, state machine, agent topology, guards, scope enforcement, structured output, recovery, and extension model |
 | **[MANIFEST.md](MANIFEST.md)** | Detailed inventory of agents, skills, instructions, configuration, and guards |
 | **`agent/`** | The actual KEEL harness files installed into omp |
 
 If you are new to KEEL:
 
-**README → Quick Start → [USAGE.md](USAGE.md) → [INSTALL.md](INSTALL.md) → [MANIFEST.md](MANIFEST.md)**
+**README → Quick Start → [USAGE.md](USAGE.md) → [INSTALL.md](INSTALL.md)**
+
+If you are auditing or developing KEEL:
+
+**[Technical Architecture](docs/ARCHITECTURE.md) → [MANIFEST.md](MANIFEST.md) → `agent/` source → `verify.*` / `tests/`**
 
 ---
 
