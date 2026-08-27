@@ -17,6 +17,18 @@ KEEL is an opinionated layer on top of [omp](https://omp.sh/) that adds an engin
 
 ---
 
+## Architecture at a glance
+
+<div align="center">
+
+![KEEL architecture — engineering control layer on top of omp](docs/assets/keel-architecture.svg)
+
+</div>
+
+KEEL is the engineering control layer around the [omp](https://omp.sh/) execution runtime. The diagram above summarizes the boundary: KEEL owns contracts, plans, scope, review, verification, checkpoints, guards, role separation, workflow, and handoffs; omp provides the underlying runtime primitives.
+
+---
+
 ## The problem
 
 AI coding agents are very good at writing code. The hard part is everything around the code:
