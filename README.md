@@ -51,6 +51,10 @@ KEEL turns an AI coding session into a controlled engineering pipeline:
    └──────┬───────┘
           ▼
    ┌──────────────┐
+   │  PLAN REVIEW  │  A separate reviewer gates the plan
+   └──────┬───────┘
+          ▼
+   ┌──────────────┐
    │   APPROVAL   │  You approve the actual plan
    └──────┬───────┘
           ▼
@@ -58,10 +62,10 @@ KEEL turns an AI coding session into a controlled engineering pipeline:
    │     CODE     │  The coder works inside the scope
    └──────┬───────┘
           ▼
-   ┌──────────────┐
-   │    REVIEW    │  A separate agent checks the result
-   └──────┬───────┘
-          ▼
+   ┌──────────────────────────────┐
+   │ CONDITIONAL REVIEW / REVISE  │  Re-review when required
+   └──────────────┬───────────────┘
+                  ▼
    ┌──────────────┐
    │   VERIFY     │  Acceptance is checked against reality
    └──────┬───────┘
@@ -69,7 +73,7 @@ KEEL turns an AI coding session into a controlled engineering pipeline:
          DONE
 ```
 
-The implementation loop can run through multiple coder/reviewer iterations. You only get pulled back in when a meaningful decision, approval, or real blocker requires you.
+The implementation loop can run through multiple coder/reviewer iterations. The reviewer is not a mandatory post-code pass on every implementation: it re-enters after code when native checks fail repeatedly, behavior cannot be checked automatically, the diff is large, or a sensitive area changed. You only get pulled back in when a meaningful decision, approval, or real blocker requires you.
 
 > **KEEL is not another coding agent. It is the engineering system around one.**
 
@@ -117,7 +121,7 @@ The task becomes an explicit acceptance contract before the coder starts. Ambigu
 
 ### The plan is a real gate
 
-The coder does not start just because the model thinks the plan is good enough. The plan reaches an explicit approval point.
+The coder does not start just because the model thinks the plan is good enough. The plan is reviewed by a separate reviewer and then reaches an explicit human approval point.
 
 ### Scope is enforced
 
@@ -129,7 +133,7 @@ The planner plans. The coder implements. The reviewer reviews. The orchestrator 
 
 ### "Done" requires evidence
 
-The coder reports what was verified and what was not. The reviewer independently evaluates the result. Acceptance is tied to the contract rather than to the model saying "looks good".
+The coder reports what was verified and what was not. The reviewer independently evaluates the plan and, when triggered, the implementation. Acceptance is tied to the contract rather than to the model saying "looks good".
 
 ### Verification can reach the real system
 
@@ -154,7 +158,7 @@ KEEL adds a small set of cooperating roles around the primary omp session:
 | **Orchestrator** | Understands the request, coordinates the workflow, owns control documents | No |
 | **Planner** | Produces the implementation plan and acceptance contract | No |
 | **Coder** | Implements the approved work | **Yes** |
-| **Reviewer** | Independently reviews the plan/result and sends the next required action | No |
+| **Reviewer** | Gates the plan before code and conditionally reviews the implementation | No |
 | **Designer** | Produces UI/UX concepts when needed | No |
 | **Scout** | Cheap, read-only codebase reconnaissance | No |
 
@@ -164,34 +168,55 @@ The roles use omp's native subagent and tool mechanisms. KEEL adds its own rules
 
 ## Architecture
 
-The important distinction is simple:
+The important distinction is that **review happens twice, for different reasons**: Gate #1 is a pre-code review of the contract and plan; Gate #2 is a conditional post-code review of the implementation. The second gate is not run on every implementation pass.
 
 ```text
-                 USER
-                   │
-                   ▼
-            ┌─────────────┐
-            │ ORCHESTRATOR│
-            └──────┬──────┘
-                   │
-          ┌────────┼────────┐
-          ▼        ▼        ▼
-       PLANNER   SCOUT   DESIGNER
-          │
-          ▼
-       APPROVAL
-          │
-          ▼
-        CODER ◄──────────────┐
-          │                  │
-          ▼                  │
-       REVIEWER ─────────────┘
-          │
-          ▼
-       VERIFIED
+                              USER
+                                │
+                                ▼
+                         ORCHESTRATOR
+                                │
+             ┌──────────────────┼──────────────────┐
+             ▼                  ▼                  ▼
+          PLANNER             SCOUT             DESIGNER
+             │
+             ▼
+      CONTRACT + PLAN
+             │
+             ▼
+       REVIEWER · GATE #1
+       plan / contract
+             │
+             ▼
+          APPROVAL
+             │
+             ▼
+           CODER
+             │
+             ▼
+       IMPLEMENTATION
+             │
+             ├───────────────┐
+             ▼               │
+   REVIEWER · GATE #2       │
+   conditional              │
+             │               │
+       ┌─────┴─────┐         │
+       ▼           ▼         │
+    REVISE       PASS        │
+       │           │         │
+       └─────► CODER         │
+                   │         │
+                   └─────────┘
+                         │
+                         ▼
+              INDEPENDENT VERIFY
+                         │
+                         ▼
+                      VERIFIED
 ```
 
-The primary session owns the control documents. The coder is the only role intended to write project code. Read-only roles are constrained by omp's tool model and KEEL's guards.
+The primary session owns the control documents. The coder is the only role intended to write project code. Planner, designer, and scout are strictly read-only; the reviewer has no project write tools but may use browser/MCP interaction when the task requires UI verification. KEEL's extension adds the runtime checks that make these boundaries mechanical.
 
 ---
 
